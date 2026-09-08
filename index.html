@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Nosso Orçamento</title>
+<meta name="description" content="Organização financeira da casa — Bárbara & Bruno" />
+<meta name="theme-color" content="#3B1D52" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Orçamento" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; padding: 0; }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    onAuthStateChanged,
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getFirestore,
+    doc,
+    getDoc,
+    setDoc,
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  // Configuração do projeto Firebase "nossa-casinha-bb"
+  const firebaseConfig = {
+    apiKey: "AIzaSyCfJ8sPdeeLJOsXQBdgVJRyOowm1WF5jMA",
+    authDomain: "nossa-casinha-bb.firebaseapp.com",
+    projectId: "nossa-casinha-bb",
+    storageBucket: "nossa-casinha-bb.firebasestorage.app",
+    messagingSenderId: "1078747916919",
+    appId: "1:1078747916919:web:de449d758db552e0c9b472",
+  };
+
+  const ALLOWED_EMAILS = ["balameza18@gmail.com", "brupascutti@gmail.com"];
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const auth = getAuth(firebaseApp);
+  const db = getFirestore(firebaseApp);
+  const provider = new GoogleAuthProvider();
+
+  const DOC_REF = doc(db, "orcamento", "dados");
+
+  window.FirebaseAPI = {
+    ALLOWED_EMAILS,
+    signIn: () => signInWithPopup(auth, provider),
+    signOutUser: () => signOut(auth),
+    onAuthChange: (cb) => onAuthStateChanged(auth, cb),
+    loadData: async () => {
+      const snap = await getDoc(DOC_REF);
+      return snap.exists() ? snap.data() : null;
+    },
+    saveData: async (data) => {
+      await setDoc(DOC_REF, data);
+    },
+  };
+
+  window.dispatchEvent(new Event("firebase-ready"));
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+// ============================================================
+// Ícones (SVG inline, substituindo lucide-react — sem bundler não dá
+// pra importar de npm, então cada ícone é desenhado à mão aqui)
+// ============================================================
+
+function IconBase({ children, size = 20, color = "currentColor", strokeWidth = 2 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+const Home = (p) => (
+  <IconBase {...p}>
+    <path d="M3 11l9-8 9 8" />
+    <path d="M5 10v10h14V10" />
+  </IconBase>
+);
+const Receipt = (p) => (
+  <IconBase {...p}>
+    <path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2V3z" />
+    <path d="M8 7h8M8 11h8M8 15h5" />
+  </IconBase>
+);
+const CalculatorIcon = (p) => (
+  <IconBase {...p}>
+    <rect x="4" y="2" width="16" height="20" rx="2" />
+    <path d="M8 6h8" />
+    <path d="M8 10.5h.01M12 10.5h.01M16 10.5h.01M8 14.5h.01M12 14.5h.01M16 14.5h.01M8 18.5h.01M12 18.5h.01" />
+  </IconBase>
+);
+const Sprout = (p) => (
+  <IconBase {...p}>
+    <path d="M7 20h10" />
+    <path d="M12 20v-8" />
+    <path d="M12 12c-4 0-6-2-6-6 4 0 6 2 6 6z" />
+    <path d="M12 12c4 0 6-3 6-7-4 0-6 2-6 7z" />
+  </IconBase>
+);
+const Settings = (p) => (
+  <IconBase {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" />
+  </IconBase>
+);
+const CheckCircle2 = (p) => (
+  <IconBase {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9 12l2 2 4-4" />
+  </IconBase>
+);
+const Circle = (p) => (
+  <IconBase {...p}>
+    <circle cx="12" cy="12" r="10" />
+  </IconBase>
+);
+const Plus = (p) => (
+  <IconBase {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </IconBase>
+);
+const Trash2 = (p) => (
+  <IconBase {...p}>
+    <path d="M3 6h18" />
+    <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+  </IconBase>
+);
+const RotateCcw = (p) => (
+  <IconBase {...p}>
+    <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.7 2.7L3 8" />
+    <path d="M3 3v5h5" />
+  </IconBase>
+);
+const Save = (p) => (
+  <IconBase {...p}>
+    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+    <path d="M17 21v-8H7v8M7 3v5h8" />
+  </IconBase>
+);
+const LogOut = (p) => (
+  <IconBase {...p}>
+    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+    <path d="M16 17l5-5-5-5" />
+    <path d="M21 12H9" />
+  </IconBase>
+);
+const RefreshCw = (p) => (
+  <IconBase {...p}>
+    <path d="M21 2v6h-6" />
+    <path d="M3 12a9 9 0 0115-6.7L21 8" />
+    <path d="M3 22v-6h6" />
+    <path d="M21 12a9 9 0 01-15 6.7L3 16" />
+  </IconBase>
+);
+
+// ============================================================
+// Gráficos desenhados à mão em SVG (substituindo recharts, que
+// depende de várias sub-bibliotecas e não carrega bem via CDN simples)
+// ============================================================
+
+function polarToCartesian(cx, cy, r, angleDeg) {
+  const angleRad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(angleRad), y: cy + r * Math.sin(angleRad) };
+}
+
+function describeDonutSlice(cx, cy, rOuter, rInner, startAngle, endAngle) {
+  const startOuter = polarToCartesian(cx, cy, rOuter, endAngle);
+  const endOuter = polarToCartesian(cx, cy, rOuter, startAngle);
+  const startInner = polarToCartesian(cx, cy, rInner, endAngle);
+  const endInner = polarToCartesian(cx, cy, rInner, startAngle);
+  const largeArc = endAngle - startAngle <= 180 ? 0 : 1;
+  return [
+    "M", startOuter.x, startOuter.y,
+    "A", rOuter, rOuter, 0, largeArc, 0, endOuter.x, endOuter.y,
+    "L", endInner.x, endInner.y,
+    "A", rInner, rInner, 0, largeArc, 1, startInner.x, startInner.y,
+    "Z",
+  ].join(" ");
+}
+
+function DonutChart({ data, size = 200 }) {
+  const total = data.reduce((a, d) => a + d.value, 0);
+  const cx = size / 2;
+  const cy = size / 2;
+  const rOuter = size * 0.4;
+  const rInner = size * 0.28;
+  if (total <= 0) {
+    return (
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "100%", height: "100%" }}>
+        <circle cx={cx} cy={cy} r={rOuter} fill="none" stroke={COLORS.border} strokeWidth={rOuter - rInner} />
+      </svg>
+    );
+  }
+  if (data.length === 1) {
+    return (
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "100%", height: "100%" }}>
+        <circle cx={cx} cy={cy} r={(rOuter + rInner) / 2} fill="none" stroke={data[0].color} strokeWidth={rOuter - rInner} />
+      </svg>
+    );
+  }
+  let cumulative = 0;
+  const slices = data.map((d) => {
+    const startAngle = (cumulative / total) * 360;
+    cumulative += d.value;
+    const endAngle = (cumulative / total) * 360;
+    return { ...d, path: describeDonutSlice(cx, cy, rOuter, rInner, startAngle, Math.max(endAngle, startAngle + 0.4)) };
+  });
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "100%", height: "100%" }}>
+      {slices.map((s, i) => (
+        <path key={i} d={s.path} fill={s.color} />
+      ))}
+    </svg>
+  );
+}
+
+function TrendLineChart({ data, color, width = 320, height = 170 }) {
+  if (!data || data.length === 0) return null;
+  const values = data.map((d) => d.saldo);
+  const min = Math.min(0, ...values);
+  const max = Math.max(...values, 1);
+  const padTop = 14;
+  const padBottom = 26;
+  const padX = 28;
+  const plotW = width - padX * 2;
+  const plotH = height - padTop - padBottom;
+  const xStep = data.length > 1 ? plotW / (data.length - 1) : 0;
+  function toXY(i, v) {
+    const x = padX + i * xStep;
+    const range = max - min || 1;
+    const y = padTop + plotH - ((v - min) / range) * plotH;
+    return { x, y };
+  }
+  const points = data.map((d, i) => toXY(i, d.saldo));
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto" }}>
+      {[0, 0.5, 1].map((t, i) => (
+        <line
+          key={i}
+          x1={padX}
+          x2={width - padX}
+          y1={padTop + plotH * t}
+          y2={padTop + plotH * t}
+          stroke={COLORS.border}
+          strokeDasharray="3 3"
+        />
+      ))}
+      <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" />
+      {points.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="3.2" fill={color} />
+      ))}
+      {data.map((d, i) => {
+        const p = toXY(i, d.saldo);
+        return (
+          <text key={i} x={p.x} y={height - 6} fontSize="10" fill={COLORS.inkSoft} textAnchor="middle">
+            {d.mes}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ============================================================
+// Constantes e dados padrão
+// ============================================================
+
+const STORAGE_KEY = "nosso-orcamento-casa";
+
+const COLORS = {
+  bg: "#F6F1E4",
+  ink: "#2B2621",
+  inkSoft: "#75695C",
+  primary: "#6C3FA6",
+  primaryDark: "#3B1D52",
+  mustard: "#DE9F2E",
+  coral: "#CE6650",
+  teal: "#296E6C",
+  cream: "#FFFDF7",
+  border: "#E6DCC6",
+  danger: "#B04537",
+  leaf: "#3F7A52",
+  soil: "#4A3728",
+  lilac: "#9B7BC4",
+};
+
+const DEFAULT_MONTH_KEY = "2026-09";
+
+const DEFAULT_MONTH_DATA = {
+  receitas: {
+    salarioBarbara: 4400,
+    salarioBruno: 4600,
+    va: 1000,
+    vtBarbara: 450,
+    vrBarbara: 1056,
+    vrBruno: 700,
+  },
+  gastosFixos: [
+    { id: "aluguel", nome: "Aluguel + condomínio + taxas", responsavel: "Casa", valor: 3053, vencimento: "", pago: false },
+    { id: "academia", nome: "Academia", responsavel: "Compartilhado", valor: 120, vencimento: "", pago: false },
+    { id: "celular", nome: "Celular", responsavel: "Compartilhado", valor: 60, vencimento: "", pago: false },
+    { id: "unha", nome: "Manutenção de unha", responsavel: "Bárbara", valor: 160, vencimento: "", pago: false },
+    { id: "transporteBarbara", nome: "Transporte (cobre o VT)", responsavel: "Bárbara", valor: 450, vencimento: "", pago: false },
+    { id: "almocoBarbara", nome: "Almoço fora (cobre o VR)", responsavel: "Bárbara", valor: 1056, vencimento: "", pago: false },
+    { id: "cabeloBruno", nome: "Corte de cabelo", responsavel: "Bruno", valor: 100, vencimento: "", pago: false },
+    { id: "vtBruno", nome: "Vale-transporte (VT)", responsavel: "Bruno", valor: 150, vencimento: "", pago: false },
+    { id: "almocoBruno", nome: "Almoço fora (VR, sem delivery)", responsavel: "Bruno", valor: 350, vencimento: "", pago: false },
+  ],
+  gastosEssenciais: [
+    { id: "internet", nome: "Internet", responsavel: "Casa", valor: 100, vencimento: "", pago: false },
+    { id: "luz", nome: "Luz", responsavel: "Casa", valor: 170, vencimento: "", pago: false },
+    { id: "agua", nome: "Água (incluída no condomínio)", responsavel: "Casa", valor: 0, vencimento: "", pago: false },
+    { id: "gas", nome: "Gás encanado", responsavel: "Casa", valor: 150, vencimento: "", pago: false },
+    { id: "mercado", nome: "Mercado", responsavel: "Casa", valor: 1000, vencimento: "", pago: false },
+    { id: "farmacia", nome: "Farmácia / higiene", responsavel: "Casa", valor: 120, vencimento: "", pago: false },
+  ],
+  gastosNaoEssenciais: [
+    { id: "lazer", nome: "Lazer", responsavel: "Casa", valor: 0, vencimento: "", pago: false },
+    { id: "delivery", nome: "Delivery / restaurante", responsavel: "Casa", valor: 500, vencimento: "", pago: false },
+    { id: "outros", nome: "Outros / imprevistos", responsavel: "Casa", valor: 0, vencimento: "", pago: false },
+  ],
+  poupanca: {
+    mesesReserva: 6,
+    valorJaGuardado: 0,
+    pctReserva: 0.11,
+    pctInvestimento: 0.11,
+  },
+  divisao: {
+    metodo: "proporcional",
+    pctBarbaraCustom: 0.5,
+    gastosBarbara: [],
+    gastosBruno: [],
+  },
+};
+
+// ============================================================
+// Helpers de mês / histórico
+// ============================================================
+
+const MESES_PT = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+const MESES_ABREV = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+function monthKeyToLabel(key) {
+  const [y, m] = String(key).split("-").map(Number);
+  if (!y || !m || !MESES_PT[m - 1]) return key;
+  return `${MESES_PT[m - 1]}/${y}`;
+}
+
+function monthKeyToShort(key) {
+  const [y, m] = String(key).split("-").map(Number);
+  if (!y || !m || !MESES_ABREV[m - 1]) return key;
+  return `${MESES_ABREV[m - 1]}/${String(y).slice(2)}`;
+}
+
+function shiftMonthKey(key, delta) {
+  let [y, m] = String(key).split("-").map(Number);
+  m += delta;
+  while (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  while (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+function normalizeStr(s) {
+  return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function monthKeyFromLabel(label) {
+  if (!label || typeof label !== "string" || !label.includes("/")) return null;
+  const [monthName, yearStr] = label.split("/");
+  const year = parseInt(yearStr, 10);
+  if (!Number.isFinite(year)) return null;
+  const idx = MESES_PT.findIndex((m) => normalizeStr(m) === normalizeStr(monthName));
+  if (idx === -1) return null;
+  return `${year}-${String(idx + 1).padStart(2, "0")}`;
+}
+
+// Constrói a estrutura { months, activeMonth } a partir do que estiver salvo,
+// migrando automaticamente o formato antigo (um único mês, sem histórico).
+function buildInitialRootData(parsed) {
+  if (parsed && parsed.months && typeof parsed.months === "object") {
+    const keys = Object.keys(parsed.months);
+    if (keys.length === 0) {
+      return { months: { [DEFAULT_MONTH_KEY]: deepCopy(DEFAULT_MONTH_DATA) }, activeMonth: DEFAULT_MONTH_KEY };
+    }
+    const activeMonth = parsed.months[parsed.activeMonth] ? parsed.activeMonth : keys.sort()[keys.length - 1];
+    return { months: parsed.months, activeMonth };
+  }
+  if (parsed && parsed.receitas) {
+    // formato antigo: um único mês solto, sem histórico
+    const key = monthKeyFromLabel(parsed.mesReferencia) || DEFAULT_MONTH_KEY;
+    const monthData = deepCopy(DEFAULT_MONTH_DATA);
+    const clone = { ...parsed };
+    delete clone.mesReferencia;
+    Object.assign(monthData, clone);
+    return { months: { [key]: monthData }, activeMonth: key };
+  }
+  return { months: { [DEFAULT_MONTH_KEY]: deepCopy(DEFAULT_MONTH_DATA) }, activeMonth: DEFAULT_MONTH_KEY };
+}
+
+function criarMesAPartirDe(baseMonthData) {
+  const resetPago = (arr) => arr.map((i) => ({ ...i, pago: false }));
+  return {
+    ...deepCopy(baseMonthData),
+    gastosFixos: resetPago(deepCopy(baseMonthData.gastosFixos)),
+    gastosEssenciais: resetPago(deepCopy(baseMonthData.gastosEssenciais)),
+    gastosNaoEssenciais: resetPago(deepCopy(baseMonthData.gastosNaoEssenciais)),
+  };
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function formatBRL(v) {
+  const n = Number(v);
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    Number.isFinite(n) ? n : 0
+  );
+}
+
+function sumValores(arr) {
+  return arr.reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function deepCopy(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function calcularOrcamento(data) {
+  const r = data.receitas;
+  const receitaDinheiro = (Number(r.salarioBarbara) || 0) + (Number(r.salarioBruno) || 0);
+  const receitaTotal =
+    receitaDinheiro +
+    (Number(r.va) || 0) +
+    (Number(r.vtBarbara) || 0) +
+    (Number(r.vrBarbara) || 0) +
+    (Number(r.vrBruno) || 0);
+
+  const totalFixos = sumValores(data.gastosFixos);
+  const totalEssenciais = sumValores(data.gastosEssenciais);
+  const totalNaoEssenciais = sumValores(data.gastosNaoEssenciais);
+
+  const aluguelItem = data.gastosFixos.find((i) => i.id === "aluguel");
+  const aluguel = aluguelItem ? Number(aluguelItem.valor) || 0 : 0;
+
+  const gastoEssencialMensal = aluguel + totalEssenciais;
+  const metaReserva = gastoEssencialMensal * (Number(data.poupanca.mesesReserva) || 0);
+  const faltaReserva = Math.max(metaReserva - (Number(data.poupanca.valorJaGuardado) || 0), 0);
+
+  const valorMensalReserva = receitaDinheiro * (Number(data.poupanca.pctReserva) || 0);
+  const valorMensalInvestimento = receitaDinheiro * (Number(data.poupanca.pctInvestimento) || 0);
+  const totalPoupanca = valorMensalReserva + valorMensalInvestimento;
+
+  const totalAlocado = totalFixos + totalEssenciais + totalNaoEssenciais + totalPoupanca;
+  const saldoNaoAlocado = receitaTotal - totalAlocado;
+
+  const mesesAteReserva = valorMensalReserva > 0 ? faltaReserva / valorMensalReserva : null;
+
+  return {
+    receitaDinheiro,
+    receitaTotal,
+    totalFixos,
+    totalEssenciais,
+    totalNaoEssenciais,
+    aluguel,
+    gastoEssencialMensal,
+    metaReserva,
+    faltaReserva,
+    valorMensalReserva,
+    valorMensalInvestimento,
+    totalPoupanca,
+    totalAlocado,
+    saldoNaoAlocado,
+    mesesAteReserva,
+  };
+}
+
+function calcularDivisao(data, saldoNaoAlocado) {
+  const salarioBarbara = Number(data.receitas.salarioBarbara) || 0;
+  const salarioBruno = Number(data.receitas.salarioBruno) || 0;
+  let pctBarbara;
+  if (data.divisao.metodo === "5050") {
+    pctBarbara = 0.5;
+  } else if (data.divisao.metodo === "proporcional") {
+    const total = salarioBarbara + salarioBruno;
+    pctBarbara = total > 0 ? salarioBarbara / total : 0.5;
+  } else {
+    pctBarbara = Number(data.divisao.pctBarbaraCustom);
+    if (!Number.isFinite(pctBarbara)) pctBarbara = 0.5;
+  }
+  const valorBarbara = saldoNaoAlocado * pctBarbara;
+  const valorBruno = saldoNaoAlocado * (1 - pctBarbara);
+  return { pctBarbara, valorBarbara, valorBruno };
+}
+
+// ============================================================
+// Componentes visuais pequenos
+// ============================================================
+
+function GlobalStyle() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+      .font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; }
+      .font-body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+      input[type=number]::-webkit-inner-spin-button,
+      input[type=number]::-webkit-outer-spin-button { opacity: 1; }
+    `}</style>
+  );
+}
+
+function PersonBadge({ pessoa }) {
+  const map = {
+    Bárbara: COLORS.coral,
+    Bruno: COLORS.teal,
+    Compartilhado: COLORS.mustard,
+    Casa: COLORS.mustard,
+  };
+  const bg = map[pessoa] || COLORS.mustard;
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
+      style={{ backgroundColor: bg }}
+    >
+      {pessoa || "Casa"}
+    </span>
+  );
+}
+
+function StatCard({ label, value, sub }) {
+  return (
+    <div className="rounded-2xl p-3 border" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+      <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+        {label}
+      </p>
+      <p className="font-display text-xl mt-1" style={{ color: COLORS.primaryDark }}>
+        {formatBRL(value)}
+      </p>
+      {sub && (
+        <p className="text-xs mt-0.5" style={{ color: COLORS.inkSoft }}>
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CategorySummaryRow({ label, value, color }) {
+  return (
+    <div
+      className="flex items-center justify-between rounded-2xl px-4 py-3 border"
+      style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+        <span className="text-sm" style={{ color: COLORS.ink }}>
+          {label}
+        </span>
+      </div>
+      <span className="text-sm font-medium" style={{ color: COLORS.primaryDark }}>
+        {formatBRL(value)}
+      </span>
+    </div>
+  );
+}
+
+function NumberField({ label, value, onChange, prefix, suffix }) {
+  return (
+    <label className="block">
+      <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+        {label}
+      </span>
+      <div className="flex items-center gap-1 border-b py-1.5" style={{ borderColor: COLORS.border }}>
+        {prefix && (
+          <span className="text-sm" style={{ color: COLORS.inkSoft }}>
+            {prefix}
+          </span>
+        )}
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          className="w-full text-sm bg-transparent outline-none"
+          style={{ color: COLORS.ink }}
+        />
+        {suffix && (
+          <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+            {suffix}
+          </span>
+        )}
+      </div>
+    </label>
+  );
+}
+
+function PercentField({ label, value, onChange }) {
+  return (
+    <label className="block">
+      <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+        {label}
+      </span>
+      <div className="flex items-center gap-1 border-b py-1.5" style={{ borderColor: COLORS.border }}>
+        <input
+          type="number"
+          step="0.5"
+          value={(Number(value) * 100).toFixed(1)}
+          onChange={(e) => onChange((parseFloat(e.target.value) || 0) / 100)}
+          className="w-full text-sm bg-transparent outline-none"
+          style={{ color: COLORS.ink }}
+        />
+        <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+          %
+        </span>
+      </div>
+    </label>
+  );
+}
+
+function PlantProgress({ pct }) {
+  const clamped = Math.max(0, Math.min(1, Number(pct) || 0));
+  const stemHeight = 12 + clamped * 68;
+  const topY = 118 - stemHeight;
+  return (
+    <svg viewBox="0 0 160 150" className="w-28 h-28 mx-auto">
+      <path d="M55 138 L105 138 L100 116 L60 116 Z" fill={COLORS.coral} />
+      <rect x="50" y="108" width="60" height="10" rx="3" fill={COLORS.coral} />
+      <ellipse cx="80" cy="114" rx="26" ry="4" fill={COLORS.soil} />
+      <line x1="80" y1="114" x2="80" y2={topY} stroke={COLORS.leaf} strokeWidth="4" strokeLinecap="round" />
+      {clamped > 0.12 && (
+        <ellipse
+          cx={68}
+          cy={114 - stemHeight * 0.35}
+          rx="14"
+          ry="8"
+          fill={COLORS.leaf}
+          transform={`rotate(-28 68 ${114 - stemHeight * 0.35})`}
+        />
+      )}
+      {clamped > 0.3 && (
+        <ellipse
+          cx={92}
+          cy={114 - stemHeight * 0.52}
+          rx="14"
+          ry="8"
+          fill={COLORS.leaf}
+          transform={`rotate(28 92 ${114 - stemHeight * 0.52})`}
+        />
+      )}
+      {clamped > 0.58 && (
+        <ellipse
+          cx={68}
+          cy={114 - stemHeight * 0.78}
+          rx="13"
+          ry="7"
+          fill={COLORS.teal}
+          transform={`rotate(-22 68 ${114 - stemHeight * 0.78})`}
+        />
+      )}
+      {clamped > 0.85 && <circle cx="80" cy={topY - 6} r="9" fill={COLORS.mustard} />}
+    </svg>
+  );
+}
+
+function MiniCalculator() {
+  const [display, setDisplay] = useState("0");
+  const [acc, setAcc] = useState(null);
+  const [op, setOp] = useState(null);
+  const [waitingNew, setWaitingNew] = useState(true);
+
+  function compute(a, b, operator) {
+    if (operator === "+") return a + b;
+    if (operator === "-") return a - b;
+    if (operator === "×") return a * b;
+    if (operator === "÷") return b === 0 ? 0 : a / b;
+    return b;
+  }
+
+  function inputDigit(d) {
+    setDisplay((prev) => (waitingNew || prev === "0" ? String(d) : prev + String(d)));
+    setWaitingNew(false);
+  }
+  function inputDot() {
+    setDisplay((prev) => (waitingNew ? "0." : prev.includes(".") ? prev : prev + "."));
+    setWaitingNew(false);
+  }
+  function chooseOp(nextOp) {
+    const current = parseFloat(display) || 0;
+    setAcc((prevAcc) => {
+      if (prevAcc === null) return current;
+      if (!waitingNew) return compute(prevAcc, current, op);
+      return prevAcc;
+    });
+    setOp(nextOp);
+    setWaitingNew(true);
+  }
+  function equals() {
+    const current = parseFloat(display) || 0;
+    if (acc !== null && op) {
+      const result = compute(acc, current, op);
+      setDisplay(String(result));
+      setAcc(null);
+      setOp(null);
+      setWaitingNew(true);
+    }
+  }
+  function clearAll() {
+    setDisplay("0");
+    setAcc(null);
+    setOp(null);
+    setWaitingNew(true);
+  }
+
+  const keys = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "-", "0", ".", "=", "+"];
+
+  return (
+    <div className="rounded-2xl p-3" style={{ backgroundColor: COLORS.primaryDark }}>
+      <div className="text-right text-2xl text-white py-3 px-2 truncate font-body">{display}</div>
+      <div className="grid grid-cols-4 gap-2 mt-1">
+        {keys.map((k, idx) => {
+          const isOp = ["+", "-", "×", "÷", "="].includes(k);
+          return (
+            <button
+              key={idx}
+              onClick={() => {
+                if (k === "=") equals();
+                else if (isOp) chooseOp(k);
+                else if (k === ".") inputDot();
+                else inputDigit(k);
+              }}
+              className="rounded-xl py-3 text-sm font-medium"
+              style={{
+                backgroundColor: isOp ? COLORS.mustard : "rgba(255,255,255,0.10)",
+                color: isOp ? COLORS.primaryDark : "white",
+              }}
+            >
+              {k}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        onClick={clearAll}
+        className="mt-2 w-full text-xs py-2 rounded-xl"
+        style={{ color: "#D9C7EA" }}
+      >
+        Limpar
+      </button>
+    </div>
+  );
+}
+
+function EditableCategoryList({ title, items, onChange }) {
+  function updateItem(id, field, value) {
+    onChange(items.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+  }
+  function removeItem(id) {
+    onChange(items.filter((i) => i.id !== id));
+  }
+  function addItem() {
+    onChange([...items, { id: uid(), nome: "Novo item", responsavel: "Casa", valor: 0, vencimento: "", pago: false }]);
+  }
+  const total = sumValores(items);
+
+  return (
+    <div className="rounded-3xl border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+      <div className="flex justify-between items-center mb-3">
+        <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+          {title}
+        </p>
+        <p className="text-sm font-display" style={{ color: COLORS.primaryDark }}>
+          {formatBRL(total)}
+        </p>
+      </div>
+      <div className="space-y-3">
+        {items.map((item) => (
+          <div key={item.id} className="border-b pb-2" style={{ borderColor: COLORS.border }}>
+            <div className="flex items-center gap-2">
+              <input
+                value={item.nome}
+                onChange={(e) => updateItem(item.id, "nome", e.target.value)}
+                className="flex-1 text-sm bg-transparent outline-none"
+                style={{ color: COLORS.ink }}
+              />
+              <input
+                type="number"
+                value={item.valor}
+                onChange={(e) => updateItem(item.id, "valor", parseFloat(e.target.value) || 0)}
+                className="w-20 text-sm text-right bg-transparent outline-none"
+                style={{ color: COLORS.ink }}
+              />
+              <button onClick={() => removeItem(item.id)} aria-label="Remover">
+                <Trash2 size={15} color={COLORS.inkSoft} />
+              </button>
+            </div>
+            <div className="mt-1">
+              <select
+                value={item.responsavel}
+                onChange={(e) => updateItem(item.id, "responsavel", e.target.value)}
+                className="text-xs bg-transparent outline-none"
+                style={{ color: COLORS.inkSoft }}
+              >
+                <option>Casa</option>
+                <option>Compartilhado</option>
+                <option>Bárbara</option>
+                <option>Bruno</option>
+              </select>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={addItem}
+        className="mt-3 flex items-center gap-1 text-xs font-medium"
+        style={{ color: COLORS.primary }}
+      >
+        <Plus size={14} /> Adicionar item
+      </button>
+    </div>
+  );
+}
+
+function BottomNav({ tab, setTab }) {
+  const items = [
+    { id: "resumo", label: "Resumo", Icon: Home },
+    { id: "contas", label: "Contas", Icon: Receipt },
+    { id: "simulador", label: "Simular", Icon: CalculatorIcon },
+    { id: "poupanca", label: "Poupança", Icon: Sprout },
+    { id: "editar", label: "Editar", Icon: Settings },
+  ];
+  return (
+    <nav
+      className="fixed bottom-0 left-0 right-0 border-t"
+      style={{ backgroundColor: COLORS.cream, borderColor: COLORS.border }}
+    >
+      <div className="max-w-md mx-auto flex justify-between px-1">
+        {items.map(({ id, label, Icon }) => {
+          const active = tab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className="flex-1 flex flex-col items-center gap-1 py-2.5"
+            >
+              <Icon size={20} color={active ? COLORS.primary : COLORS.inkSoft} strokeWidth={active ? 2.3 : 1.7} />
+              <span
+                className="text-xs"
+                style={{ color: active ? COLORS.primary : COLORS.inkSoft, fontWeight: active ? 600 : 400 }}
+              >
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function MonthSwitcher({ rootData, setRootData }) {
+  const [open, setOpen] = useState(false);
+  const [newMonthInput, setNewMonthInput] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const sortedDesc = Object.keys(rootData.months).sort().reverse();
+
+  function goToOrCreate(key) {
+    if (!key) return;
+    setRootData((prev) => {
+      if (prev.months[key]) {
+        return { ...prev, activeMonth: key };
+      }
+      const newMonth = criarMesAPartirDe(prev.months[prev.activeMonth]);
+      return { ...prev, months: { ...prev.months, [key]: newMonth }, activeMonth: key };
+    });
+    setOpen(false);
+    setNewMonthInput("");
+  }
+
+  function selectMonth(key) {
+    setRootData((prev) => ({ ...prev, activeMonth: key }));
+    setOpen(false);
+  }
+
+  function deleteMonth(key) {
+    setRootData((prev) => {
+      const remaining = Object.keys(prev.months).filter((k) => k !== key);
+      if (remaining.length === 0) return prev;
+      const months = { ...prev.months };
+      delete months[key];
+      const activeMonth = prev.activeMonth === key ? remaining.sort()[remaining.length - 1] : prev.activeMonth;
+      return { ...prev, months, activeMonth };
+    });
+    setConfirmDelete(null);
+  }
+
+  return (
+    <div className="pt-10 px-4 pb-1 relative">
+      <div className="flex items-center justify-center gap-4">
+        <button
+          onClick={() => goToOrCreate(shiftMonthKey(rootData.activeMonth, -1))}
+          className="text-lg px-2"
+          style={{ color: COLORS.inkSoft }}
+          aria-label="Mês anterior"
+        >
+          ‹
+        </button>
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="text-sm font-medium px-2 py-1 rounded-full"
+          style={{ color: COLORS.primaryDark }}
+        >
+          {monthKeyToLabel(rootData.activeMonth)}
+        </button>
+        <button
+          onClick={() => goToOrCreate(shiftMonthKey(rootData.activeMonth, 1))}
+          className="text-lg px-2"
+          style={{ color: COLORS.inkSoft }}
+          aria-label="Próximo mês"
+        >
+          ›
+        </button>
+      </div>
+
+      {open && (
+        <div
+          className="absolute left-4 right-4 mt-2 rounded-2xl border z-20 p-3 space-y-1"
+          style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}
+        >
+          {sortedDesc.map((k) => (
+            <div key={k} className="flex items-center justify-between">
+              <button
+                onClick={() => selectMonth(k)}
+                className="text-sm py-1.5 flex-1 text-left"
+                style={{
+                  color: k === rootData.activeMonth ? COLORS.primaryDark : COLORS.ink,
+                  fontWeight: k === rootData.activeMonth ? 600 : 400,
+                }}
+              >
+                {monthKeyToLabel(k)}
+              </button>
+              {confirmDelete === k ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => deleteMonth(k)}
+                    className="text-xs px-2 py-1 rounded-full text-white"
+                    style={{ backgroundColor: COLORS.danger }}
+                  >
+                    Excluir
+                  </button>
+                  <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-1" style={{ color: COLORS.inkSoft }}>
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDelete(k)} aria-label="Excluir mês">
+                  <Trash2 size={14} color={COLORS.inkSoft} />
+                </button>
+              )}
+            </div>
+          ))}
+          <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: COLORS.border }}>
+            <input
+              type="month"
+              value={newMonthInput}
+              onChange={(e) => setNewMonthInput(e.target.value)}
+              className="flex-1 text-xs bg-transparent outline-none"
+              style={{ color: COLORS.ink }}
+            />
+            <button
+              onClick={() => goToOrCreate(newMonthInput)}
+              disabled={!newMonthInput}
+              className="text-xs px-2.5 py-1.5 rounded-full text-white"
+              style={{ backgroundColor: COLORS.primary, opacity: newMonthInput ? 1 : 0.5 }}
+            >
+              Criar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PersonLedger({ cota, gastos, onChangeGastos, accentColor, accentSoft }) {
+  const total = sumValores(gastos);
+  const restante = cota - total;
+
+  function addGasto() {
+    onChangeGastos([...gastos, { id: uid(), nome: "Novo gasto", valor: 0, data: "" }]);
+  }
+  function updateGasto(id, field, value) {
+    onChangeGastos(gastos.map((g) => (g.id === id ? { ...g, [field]: value } : g)));
+  }
+  function removeGasto(id) {
+    onChangeGastos(gastos.filter((g) => g.id !== id));
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="rounded-xl p-2" style={{ backgroundColor: accentSoft }}>
+          <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Cota
+          </p>
+          <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+            {formatBRL(cota)}
+          </p>
+        </div>
+        <div className="rounded-xl p-2" style={{ backgroundColor: accentSoft }}>
+          <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Gasto
+          </p>
+          <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+            {formatBRL(total)}
+          </p>
+        </div>
+        <div className="rounded-xl p-2" style={{ backgroundColor: accentSoft }}>
+          <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Resta
+          </p>
+          <p className="text-sm font-medium" style={{ color: restante < 0 ? COLORS.danger : accentColor }}>
+            {formatBRL(restante)}
+          </p>
+        </div>
+      </div>
+
+      {gastos.length === 0 && (
+        <p className="text-xs mb-2" style={{ color: COLORS.inkSoft }}>
+          Nenhum gasto lançado ainda nesse mês.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {gastos.map((g) => (
+          <div key={g.id} className="flex items-center gap-2 border-b pb-1.5" style={{ borderColor: COLORS.border }}>
+            <input
+              value={g.nome}
+              onChange={(e) => updateGasto(g.id, "nome", e.target.value)}
+              className="flex-1 text-sm bg-transparent outline-none"
+              style={{ color: COLORS.ink }}
+              placeholder="Descrição"
+            />
+            <input
+              type="number"
+              value={g.valor}
+              onChange={(e) => updateGasto(g.id, "valor", parseFloat(e.target.value) || 0)}
+              className="w-16 text-sm text-right bg-transparent outline-none"
+              style={{ color: COLORS.ink }}
+            />
+            <button onClick={() => removeGasto(g.id)} aria-label="Remover gasto">
+              <Trash2 size={13} color={COLORS.inkSoft} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={addGasto}
+        className="mt-3 flex items-center gap-1 text-xs font-medium"
+        style={{ color: accentColor }}
+      >
+        <Plus size={13} /> Adicionar gasto
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// Abas principais
+// ============================================================
+
+function TabResumo({ data, calc, mesLabel, trendData }) {
+  const donutData = [
+    { name: "Gastos fixos", value: calc.totalFixos, color: COLORS.coral },
+    { name: "Gastos essenciais", value: calc.totalEssenciais, color: COLORS.mustard },
+    { name: "Não essenciais", value: calc.totalNaoEssenciais, color: COLORS.teal },
+    { name: "Reserva de emergência", value: calc.valorMensalReserva, color: COLORS.primary },
+    { name: "Investimentos", value: calc.valorMensalInvestimento, color: COLORS.lilac },
+    { name: "Saldo livre", value: Math.max(calc.saldoNaoAlocado, 0), color: "#CFC4A8" },
+  ].filter((d) => d.value > 0.009);
+
+  const pctLivre = calc.receitaTotal > 0 ? (calc.saldoNaoAlocado / calc.receitaTotal) * 100 : 0;
+
+  return (
+    <div className="px-4 pt-2 pb-4 space-y-4">
+      <div>
+        <p className="text-sm" style={{ color: COLORS.inkSoft }}>
+          {mesLabel}
+        </p>
+        <h1 className="font-display text-3xl mt-1" style={{ color: COLORS.primaryDark }}>
+          Nosso orçamento
+        </h1>
+      </div>
+
+      <div className="rounded-3xl p-5" style={{ backgroundColor: COLORS.primaryDark }}>
+        <p className="text-sm" style={{ color: "#D9C7EA" }}>
+          Saldo não alocado
+        </p>
+        <p className="font-display text-4xl text-white mt-1">{formatBRL(calc.saldoNaoAlocado)}</p>
+        <p className="text-xs mt-2" style={{ color: "#B79ACC" }}>
+          {pctLivre.toFixed(1)}% da receita total ainda sem destino
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Receita total" value={calc.receitaTotal} sub="dinheiro + benefícios" />
+        <StatCard label="Total alocado" value={calc.totalAlocado} sub="fixos + essenciais + reserva + invest." />
+      </div>
+
+      <div className="rounded-3xl p-4 border" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-sm font-medium mb-2" style={{ color: COLORS.ink }}>
+          Pra onde vai o dinheiro
+        </p>
+        <div style={{ height: 190 }}>
+          <DonutChart data={donutData} size={190} />
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-1">
+          {donutData.map((d, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs" style={{ color: COLORS.inkSoft }}>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+              {d.name} · {formatBRL(d.value)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <CategorySummaryRow label="Gastos fixos" value={calc.totalFixos} color={COLORS.coral} />
+        <CategorySummaryRow label="Gastos essenciais" value={calc.totalEssenciais} color={COLORS.mustard} />
+        <CategorySummaryRow label="Gastos não essenciais" value={calc.totalNaoEssenciais} color={COLORS.teal} />
+        <CategorySummaryRow label="Reserva de emergência" value={calc.valorMensalReserva} color={COLORS.primary} />
+        <CategorySummaryRow label="Investimentos" value={calc.valorMensalInvestimento} color={COLORS.lilac} />
+      </div>
+
+      {trendData.length > 1 ? (
+        <div className="rounded-3xl p-4 border" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+          <p className="text-sm font-medium mb-2" style={{ color: COLORS.ink }}>
+            Evolução do saldo não alocado
+          </p>
+          <TrendLineChart data={trendData} color={COLORS.primary} />
+        </div>
+      ) : (
+        <p className="text-xs text-center px-4" style={{ color: COLORS.inkSoft }}>
+          Crie mais meses (setinhas lá em cima) pra ver a evolução do orçamento ao longo do tempo.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TabContas({ data, setData }) {
+  const sourced = [
+    ...data.gastosFixos.map((i) => ({ ...i, _src: "gastosFixos" })),
+    ...data.gastosEssenciais.map((i) => ({ ...i, _src: "gastosEssenciais" })),
+    ...data.gastosNaoEssenciais.filter((i) => Number(i.valor) > 0).map((i) => ({ ...i, _src: "gastosNaoEssenciais" })),
+  ].sort((a, b) => {
+    const av = a.vencimento === "" || a.vencimento == null ? 99 : Number(a.vencimento);
+    const bv = b.vencimento === "" || b.vencimento == null ? 99 : Number(b.vencimento);
+    return av - bv;
+  });
+
+  const totalMes = sourced.reduce((a, i) => a + (Number(i.valor) || 0), 0);
+  const totalPago = sourced.filter((i) => i.pago).reduce((a, i) => a + (Number(i.valor) || 0), 0);
+  const totalPendente = totalMes - totalPago;
+
+  function togglePago(src, id) {
+    setData((prev) => ({
+      ...prev,
+      [src]: prev[src].map((item) => (item.id === id ? { ...item, pago: !item.pago } : item)),
+    }));
+  }
+  function updateVencimento(src, id, value) {
+    setData((prev) => ({
+      ...prev,
+      [src]: prev[src].map((item) => (item.id === id ? { ...item, vencimento: value } : item)),
+    }));
+  }
+
+  return (
+    <div className="px-4 pt-2 pb-4 space-y-4">
+      <h1 className="font-display text-2xl" style={{ color: COLORS.primaryDark }}>
+        Contas do mês
+      </h1>
+      <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+        Marque o que já foi pago. O que sobrar é o que ainda precisa sair da conta esse mês.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Já pago" value={totalPago} />
+        <StatCard label="Ainda por pagar" value={totalPendente} />
+      </div>
+      <div className="space-y-2">
+        {sourced.map((item) => (
+          <div
+            key={item.id}
+            className="flex items-center gap-3 rounded-2xl border px-3 py-2.5"
+            style={{ borderColor: COLORS.border, backgroundColor: item.pago ? "#EFEBDC" : COLORS.cream }}
+          >
+            <button onClick={() => togglePago(item._src, item.id)} aria-label="Marcar como pago">
+              {item.pago ? <CheckCircle2 size={22} color={COLORS.primary} /> : <Circle size={22} color={COLORS.border} />}
+            </button>
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-sm truncate"
+                style={{
+                  color: item.pago ? COLORS.inkSoft : COLORS.ink,
+                  textDecoration: item.pago ? "line-through" : "none",
+                }}
+              >
+                {item.nome}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <PersonBadge pessoa={item.responsavel} />
+                <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+                  dia
+                </span>
+                <input
+                  placeholder="—"
+                  value={item.vencimento}
+                  onChange={(e) => updateVencimento(item._src, item.id, e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                  className="w-8 text-xs bg-transparent outline-none border-b"
+                  style={{ color: COLORS.inkSoft, borderColor: COLORS.border }}
+                />
+              </div>
+            </div>
+            <span className="text-sm font-medium whitespace-nowrap" style={{ color: COLORS.primaryDark }}>
+              {formatBRL(item.valor)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TabSimulador({ data, setData }) {
+  const [simData, setSimData] = useState(() => deepCopy(data));
+  const [showCalc, setShowCalc] = useState(false);
+
+  useEffect(() => {
+    setSimData(deepCopy(data));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  const realCalc = useMemo(() => calcularOrcamento(data), [data]);
+  const simCalc = useMemo(() => calcularOrcamento(simData), [simData]);
+  const delta = simCalc.saldoNaoAlocado - realCalc.saldoNaoAlocado;
+
+  function resetSim() {
+    setSimData(deepCopy(data));
+  }
+  function applyToReal() {
+    setData(deepCopy(simData));
+  }
+  function updateSimReceita(field, value) {
+    setSimData((prev) => ({ ...prev, receitas: { ...prev.receitas, [field]: value } }));
+  }
+
+  return (
+    <div className="px-4 pt-2 pb-4 space-y-4">
+      <h1 className="font-display text-2xl" style={{ color: COLORS.primaryDark }}>
+        Simulador
+      </h1>
+      <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+        Mude qualquer valor aqui pra testar cenários. Não afeta o orçamento real até você aplicar.
+      </p>
+
+      <div className="rounded-3xl p-4" style={{ backgroundColor: COLORS.primaryDark }}>
+        <p className="text-xs" style={{ color: "#D9C7EA" }}>
+          Saldo simulado
+        </p>
+        <p className="font-display text-3xl text-white mt-1">{formatBRL(simCalc.saldoNaoAlocado)}</p>
+        <p
+          className="text-xs mt-1"
+          style={{ color: delta === 0 ? "#B79ACC" : delta > 0 ? "#9FE3B0" : "#F0A8A0" }}
+        >
+          {delta === 0
+            ? "Igual ao orçamento real"
+            : `${delta > 0 ? "+" : ""}${formatBRL(delta)} em relação ao real`}
+        </p>
+      </div>
+
+      <div className="rounded-3xl border p-4 space-y-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+          Receitas (simulação)
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField
+            label="Salário — Bárbara"
+            value={simData.receitas.salarioBarbara}
+            onChange={(v) => updateSimReceita("salarioBarbara", v)}
+            prefix="R$"
+          />
+          <NumberField
+            label="Salário — Bruno"
+            value={simData.receitas.salarioBruno}
+            onChange={(v) => updateSimReceita("salarioBruno", v)}
+            prefix="R$"
+          />
+        </div>
+      </div>
+
+      <EditableCategoryList
+        title="Gastos fixos (simulação)"
+        items={simData.gastosFixos}
+        onChange={(v) => setSimData((prev) => ({ ...prev, gastosFixos: v }))}
+      />
+      <EditableCategoryList
+        title="Gastos essenciais (simulação)"
+        items={simData.gastosEssenciais}
+        onChange={(v) => setSimData((prev) => ({ ...prev, gastosEssenciais: v }))}
+      />
+      <EditableCategoryList
+        title="Gastos não essenciais (simulação)"
+        items={simData.gastosNaoEssenciais}
+        onChange={(v) => setSimData((prev) => ({ ...prev, gastosNaoEssenciais: v }))}
+      />
+
+      <div className="space-y-2">
+        <button
+          onClick={applyToReal}
+          className="w-full text-sm py-3 rounded-full text-white flex items-center justify-center gap-2 font-medium"
+          style={{ backgroundColor: COLORS.primary }}
+        >
+          <Save size={15} /> Aplicar essas mudanças ao orçamento real
+        </button>
+        <button
+          onClick={resetSim}
+          className="w-full text-xs py-3 rounded-full border flex items-center justify-center gap-2"
+          style={{ borderColor: COLORS.border, color: COLORS.inkSoft }}
+        >
+          <RotateCcw size={14} /> Resetar simulação pros valores reais
+        </button>
+      </div>
+
+      <button
+        onClick={() => setShowCalc((s) => !s)}
+        className="w-full text-sm py-3 rounded-full flex items-center justify-center gap-2 font-medium"
+        style={{ backgroundColor: COLORS.mustard, color: COLORS.primaryDark }}
+      >
+        <CalculatorIcon size={15} /> {showCalc ? "Esconder calculadora" : "Abrir calculadora rápida"}
+      </button>
+      {showCalc && <MiniCalculator />}
+    </div>
+  );
+}
+
+function TabPoupanca({ data, setData, calc }) {
+  const [personTab, setPersonTab] = useState("Bárbara");
+  const pctReservaAtingida =
+    calc.metaReserva > 0 ? Math.min((calc.metaReserva - calc.faltaReserva) / calc.metaReserva, 1) : 0;
+  const divisao = calcularDivisao(data, calc.saldoNaoAlocado);
+
+  function updatePoupanca(field, value) {
+    setData((prev) => ({ ...prev, poupanca: { ...prev.poupanca, [field]: value } }));
+  }
+  function updateDivisao(field, value) {
+    setData((prev) => ({ ...prev, divisao: { ...prev.divisao, [field]: value } }));
+  }
+
+  return (
+    <div className="px-4 pt-2 pb-4 space-y-4">
+      <h1 className="font-display text-2xl" style={{ color: COLORS.primaryDark }}>
+        Poupança & reserva
+      </h1>
+
+      {/* ---------- Reserva de emergência (separado) ---------- */}
+      <div className="rounded-3xl border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-sm font-medium mb-2" style={{ color: COLORS.ink }}>
+          Reserva de emergência
+        </p>
+        <div className="text-center">
+          <PlantProgress pct={pctReservaAtingida} />
+          <p className="font-display text-2xl" style={{ color: COLORS.primaryDark }}>
+            {(pctReservaAtingida * 100).toFixed(0)}% da meta
+          </p>
+          <p className="text-xs mt-1" style={{ color: COLORS.inkSoft }}>
+            Faltam {formatBRL(calc.faltaReserva)} de {formatBRL(calc.metaReserva)}
+          </p>
+          {calc.mesesAteReserva !== null && (
+            <p className="text-xs mt-1" style={{ color: COLORS.inkSoft }}>
+              No ritmo atual: ~{calc.mesesAteReserva.toFixed(1)} meses pra completar
+            </p>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <NumberField
+            label="Meses de reserva"
+            value={data.poupanca.mesesReserva}
+            onChange={(v) => updatePoupanca("mesesReserva", v)}
+          />
+          <NumberField
+            label="Já guardado"
+            value={data.poupanca.valorJaGuardado}
+            onChange={(v) => updatePoupanca("valorJaGuardado", v)}
+            prefix="R$"
+          />
+        </div>
+        <div className="mt-3">
+          <PercentField
+            label="% da renda em dinheiro pra Reserva"
+            value={data.poupanca.pctReserva}
+            onChange={(v) => updatePoupanca("pctReserva", v)}
+          />
+        </div>
+        <div className="rounded-2xl p-3 mt-3" style={{ backgroundColor: "#EFE6F5" }}>
+          <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Valor mensal — Reserva
+          </p>
+          <p className="font-display text-xl" style={{ color: COLORS.primary }}>
+            {formatBRL(calc.valorMensalReserva)}
+          </p>
+        </div>
+      </div>
+
+      {/* ---------- Investimentos / Poupança (separado) ---------- */}
+      <div className="rounded-3xl border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-sm font-medium mb-2" style={{ color: COLORS.ink }}>
+          Investimentos / Poupança
+        </p>
+        <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>
+          Separado da reserva de emergência — aqui entra o que vocês pensam em investir ou guardar
+          além do colchão de segurança.
+        </p>
+        <PercentField
+          label="% da renda em dinheiro pra Investimentos"
+          value={data.poupanca.pctInvestimento}
+          onChange={(v) => updatePoupanca("pctInvestimento", v)}
+        />
+        <div className="rounded-2xl p-3 mt-3" style={{ backgroundColor: "#F1ECF7" }}>
+          <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Valor mensal — Investimentos
+          </p>
+          <p className="font-display text-xl" style={{ color: COLORS.lilac }}>
+            {formatBRL(calc.valorMensalInvestimento)}
+          </p>
+        </div>
+      </div>
+
+      {/* ---------- Divisão do saldo não alocado ---------- */}
+      <div className="rounded-3xl p-4 border" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-sm font-medium mb-1" style={{ color: COLORS.ink }}>
+          Dividir o saldo não alocado
+        </p>
+        <p className="font-display text-2xl mb-3" style={{ color: COLORS.primaryDark }}>
+          {formatBRL(calc.saldoNaoAlocado)}
+        </p>
+        <div className="flex gap-2 mb-4">
+          {[
+            { id: "5050", label: "50/50" },
+            { id: "proporcional", label: "Por renda" },
+            { id: "custom", label: "Personalizado" },
+          ].map((opt) => {
+            const active = data.divisao.metodo === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => updateDivisao("metodo", opt.id)}
+                className="flex-1 text-xs py-2 rounded-full border"
+                style={{
+                  borderColor: active ? COLORS.primary : COLORS.border,
+                  backgroundColor: active ? COLORS.primary : "transparent",
+                  color: active ? "white" : COLORS.inkSoft,
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {data.divisao.metodo === "custom" && (
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={Math.round((data.divisao.pctBarbaraCustom || 0.5) * 100)}
+            onChange={(e) => updateDivisao("pctBarbaraCustom", Number(e.target.value) / 100)}
+            className="w-full mb-3"
+          />
+        )}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-2xl p-3" style={{ backgroundColor: "#F7E9E3" }}>
+            <PersonBadge pessoa="Bárbara" />
+            <p className="font-display text-xl mt-2" style={{ color: COLORS.coral }}>
+              {formatBRL(divisao.valorBarbara)}
+            </p>
+            <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+              {(divisao.pctBarbara * 100).toFixed(0)}%
+            </p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ backgroundColor: "#E6EEEC" }}>
+            <PersonBadge pessoa="Bruno" />
+            <p className="font-display text-xl mt-2" style={{ color: COLORS.teal }}>
+              {formatBRL(divisao.valorBruno)}
+            </p>
+            <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+              {(100 - divisao.pctBarbara * 100).toFixed(0)}%
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t" style={{ borderColor: COLORS.border }}>
+          <p className="text-sm font-medium mb-2" style={{ color: COLORS.ink }}>
+            Nossas abinhas
+          </p>
+          <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>
+            Cada um lança aqui os gastos que foi tendo dentro da própria cota do saldo não alocado.
+          </p>
+          <div className="flex gap-2 mb-3">
+            {["Bárbara", "Bruno"].map((p) => {
+              const active = personTab === p;
+              const color = p === "Bárbara" ? COLORS.coral : COLORS.teal;
+              return (
+                <button
+                  key={p}
+                  onClick={() => setPersonTab(p)}
+                  className="flex-1 text-xs py-2 rounded-full border"
+                  style={{
+                    borderColor: active ? color : COLORS.border,
+                    backgroundColor: active ? color : "transparent",
+                    color: active ? "white" : COLORS.inkSoft,
+                  }}
+                >
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+          {personTab === "Bárbara" ? (
+            <PersonLedger
+              cota={divisao.valorBarbara}
+              gastos={data.divisao.gastosBarbara || []}
+              onChangeGastos={(v) => updateDivisao("gastosBarbara", v)}
+              accentColor={COLORS.coral}
+              accentSoft="#F7E9E3"
+            />
+          ) : (
+            <PersonLedger
+              cota={divisao.valorBruno}
+              gastos={data.divisao.gastosBruno || []}
+              onChangeGastos={(v) => updateDivisao("gastosBruno", v)}
+              accentColor={COLORS.teal}
+              accentSoft="#E6EEEC"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TabEditar({ data, setData, mesLabel, resetActiveMonth }) {
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const r = data.receitas;
+
+  function updateReceita(field, value) {
+    setData((prev) => ({ ...prev, receitas: { ...prev.receitas, [field]: value } }));
+  }
+
+  return (
+    <div className="px-4 pt-2 pb-4 space-y-4">
+      <h1 className="font-display text-2xl" style={{ color: COLORS.primaryDark }}>
+        Editar valores
+      </h1>
+
+      <div className="rounded-3xl border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+          Editando o mês de
+        </p>
+        <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+          {mesLabel}
+        </p>
+        <p className="text-xs mt-1" style={{ color: COLORS.inkSoft }}>
+          Pra mudar de mês, use as setinhas lá em cima, na aba Resumo.
+        </p>
+      </div>
+
+      <div className="rounded-3xl border p-4 space-y-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+          Receitas
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField label="Salário líquido — Bárbara" value={r.salarioBarbara} onChange={(v) => updateReceita("salarioBarbara", v)} prefix="R$" />
+          <NumberField label="Salário líquido — Bruno" value={r.salarioBruno} onChange={(v) => updateReceita("salarioBruno", v)} prefix="R$" />
+          <NumberField label="VA (vale-alimentação)" value={r.va} onChange={(v) => updateReceita("va", v)} prefix="R$" />
+          <NumberField label="VT — Bárbara" value={r.vtBarbara} onChange={(v) => updateReceita("vtBarbara", v)} prefix="R$" />
+          <NumberField label="VR — Bárbara" value={r.vrBarbara} onChange={(v) => updateReceita("vrBarbara", v)} prefix="R$" />
+          <NumberField label="VR — Bruno" value={r.vrBruno} onChange={(v) => updateReceita("vrBruno", v)} prefix="R$" />
+        </div>
+      </div>
+
+      <EditableCategoryList title="Gastos fixos" items={data.gastosFixos} onChange={(v) => setData((prev) => ({ ...prev, gastosFixos: v }))} />
+      <EditableCategoryList title="Gastos essenciais" items={data.gastosEssenciais} onChange={(v) => setData((prev) => ({ ...prev, gastosEssenciais: v }))} />
+      <EditableCategoryList title="Gastos não essenciais" items={data.gastosNaoEssenciais} onChange={(v) => setData((prev) => ({ ...prev, gastosNaoEssenciais: v }))} />
+
+      {!showResetConfirm ? (
+        <button
+          onClick={() => setShowResetConfirm(true)}
+          className="w-full text-xs py-3 rounded-full border"
+          style={{ borderColor: COLORS.border, color: COLORS.inkSoft }}
+        >
+          Restaurar valores originais deste mês
+        </button>
+      ) : (
+        <div className="rounded-2xl border p-3 text-center space-y-2" style={{ borderColor: COLORS.danger }}>
+          <p className="text-xs" style={{ color: COLORS.ink }}>
+            Isso substitui os valores editados de {mesLabel} pelos valores originais. Os outros meses do
+            histórico não são afetados. Tem certeza?
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                resetActiveMonth();
+                setShowResetConfirm(false);
+              }}
+              className="flex-1 text-xs py-2 rounded-full text-white"
+              style={{ backgroundColor: COLORS.danger }}
+            >
+              Sim, restaurar
+            </button>
+            <button
+              onClick={() => setShowResetConfirm(false)}
+              className="flex-1 text-xs py-2 rounded-full border"
+              style={{ borderColor: COLORS.border, color: COLORS.inkSoft }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// App principal
+// ============================================================
+
+function LoginScreen({ onSignIn, error }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center font-body px-6" style={{ backgroundColor: COLORS.bg }}>
+      <GlobalStyle />
+      <PlantProgress pct={0.7} />
+      <h1 className="font-display text-3xl mt-2 mb-2 text-center" style={{ color: COLORS.primaryDark }}>
+        Nosso orçamento
+      </h1>
+      <p className="text-sm text-center mb-8" style={{ color: COLORS.inkSoft }}>
+        Entre com o Google pra acessar o orçamento da casa.
+      </p>
+      <button
+        onClick={onSignIn}
+        className="flex items-center gap-3 px-6 py-3 rounded-full border font-medium text-sm"
+        style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream, color: COLORS.ink }}
+      >
+        <svg width="18" height="18" viewBox="0 0 48 48">
+          <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z" />
+          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3c-7.4 0-13.8 4-17.2 9.9z" />
+          <path fill="#4CAF50" d="M24 45c5.2 0 10-2 13.5-5.2l-6.2-5.2C29.3 36 26.8 37 24 37c-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.7 40.6 16.3 45 24 45z" />
+          <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.2 5.2C40.8 36.2 45 30.7 45 24c0-1.4-.1-2.7-.4-3.5z" />
+        </svg>
+        Entrar com Google
+      </button>
+      {error && (
+        <p className="text-xs mt-4 text-center" style={{ color: COLORS.danger }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function UnauthorizedScreen({ email, onSignOut }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center font-body px-6 text-center" style={{ backgroundColor: COLORS.bg }}>
+      <GlobalStyle />
+      <h1 className="font-display text-2xl mb-2" style={{ color: COLORS.primaryDark }}>
+        Esse app é só pra Bárbara e Bruno
+      </h1>
+      <p className="text-sm mb-6" style={{ color: COLORS.inkSoft }}>
+        A conta {email} não está autorizada a ver esse orçamento.
+      </p>
+      <button
+        onClick={onSignOut}
+        className="text-sm px-5 py-2.5 rounded-full border"
+        style={{ borderColor: COLORS.border, color: COLORS.inkSoft }}
+      >
+        Trocar de conta
+      </button>
+    </div>
+  );
+}
+
+function App() {
+  const [authState, setAuthState] = useState("loading");
+  const [user, setUser] = useState(null);
+  const [authError, setAuthError] = useState("");
+
+  const [rootData, setRootData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("resumo");
+  const [saved, setSaved] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    function waitForFirebase() {
+      if (window.FirebaseAPI) return Promise.resolve(window.FirebaseAPI);
+      return new Promise((resolve) => {
+        window.addEventListener("firebase-ready", () => resolve(window.FirebaseAPI), { once: true });
+      });
+    }
+    (async () => {
+      const api = await waitForFirebase();
+      api.onAuthChange(async (fbUser) => {
+        if (!mounted) return;
+        setUser(fbUser);
+        if (!fbUser) {
+          setAuthState("signedOut");
+          setLoading(false);
+          return;
+        }
+        if (!api.ALLOWED_EMAILS.includes(fbUser.email)) {
+          setAuthState("unauthorized");
+          setLoading(false);
+          return;
+        }
+        setAuthState("signedIn");
+        try {
+          const remoteData = await api.loadData();
+          if (mounted) setRootData(buildInitialRootData(remoteData));
+        } catch (e) {
+          if (mounted) setRootData(buildInitialRootData(null));
+        }
+        if (mounted) setLoading(false);
+      });
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (loading || !rootData || authState !== "signedIn") return;
+    setSaved(false);
+    const t = setTimeout(async () => {
+      try {
+        await window.FirebaseAPI.saveData(rootData);
+        setSaved(true);
+      } catch (e) {
+        setSaved(true);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [rootData, loading, authState]);
+
+  async function handleSignIn() {
+    setAuthError("");
+    try {
+      await window.FirebaseAPI.signIn();
+    } catch (e) {
+      setAuthError("Não deu pra entrar com o Google. Tenta de novo.");
+    }
+  }
+  function handleSignOut() {
+    window.FirebaseAPI.signOutUser();
+  }
+  async function handleReload() {
+    if (!window.FirebaseAPI) return;
+    setSaved(false);
+    try {
+      const remoteData = await window.FirebaseAPI.loadData();
+      setRootData(buildInitialRootData(remoteData));
+    } finally {
+      setSaved(true);
+    }
+  }
+
+  const data = rootData ? rootData.months[rootData.activeMonth] : null;
+  const calc = useMemo(() => (data ? calcularOrcamento(data) : null), [data]);
+
+  const trendData = useMemo(() => {
+    if (!rootData) return [];
+    return Object.keys(rootData.months)
+      .sort()
+      .map((key) => {
+        const c = calcularOrcamento(rootData.months[key]);
+        return { key, mes: monthKeyToShort(key), saldo: c.saldoNaoAlocado, receita: c.receitaTotal };
+      });
+  }, [rootData]);
+
+  function setData(updater) {
+    setRootData((prev) => {
+      const current = prev.months[prev.activeMonth];
+      const next = typeof updater === "function" ? updater(current) : updater;
+      return { ...prev, months: { ...prev.months, [prev.activeMonth]: next } };
+    });
+  }
+
+  function resetActiveMonth() {
+    setData(() => deepCopy(DEFAULT_MONTH_DATA));
+  }
+
+  if (authState === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-body" style={{ backgroundColor: COLORS.bg }}>
+        <GlobalStyle />
+        <p className="text-sm" style={{ color: COLORS.inkSoft }}>
+          Carregando…
+        </p>
+      </div>
+    );
+  }
+  if (authState === "signedOut") {
+    return <LoginScreen onSignIn={handleSignIn} error={authError} />;
+  }
+  if (authState === "unauthorized") {
+    return <UnauthorizedScreen email={user ? user.email : ""} onSignOut={handleSignOut} />;
+  }
+
+  if (loading || !data || !calc) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-body" style={{ backgroundColor: COLORS.bg }}>
+        <GlobalStyle />
+        <p className="text-sm" style={{ color: COLORS.inkSoft }}>
+          Carregando orçamento…
+        </p>
+      </div>
+    );
+  }
+
+  const mesLabel = monthKeyToLabel(rootData.activeMonth);
+
+  return (
+    <div className="min-h-screen pb-24 font-body" style={{ backgroundColor: COLORS.bg }}>
+      <GlobalStyle />
+      <div className="fixed top-3 right-3 z-10 flex items-center gap-2">
+        <button
+          onClick={handleReload}
+          className="flex items-center justify-center rounded-full"
+          style={{ width: 30, height: 30, backgroundColor: COLORS.cream, border: `1px solid ${COLORS.border}` }}
+          aria-label="Recarregar do servidor"
+        >
+          <RefreshCw size={14} color={COLORS.inkSoft} />
+        </button>
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+          style={{ backgroundColor: COLORS.cream, border: `1px solid ${COLORS.border}` }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: saved ? "#5A9B7A" : COLORS.mustard }} />
+          <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+            {saved ? "Salvo" : "Salvando…"}
+          </span>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="flex items-center justify-center rounded-full"
+          style={{ width: 30, height: 30, backgroundColor: COLORS.cream, border: `1px solid ${COLORS.border}` }}
+          aria-label="Sair"
+        >
+          <LogOut size={14} color={COLORS.inkSoft} />
+        </button>
+      </div>
+
+      <div className="max-w-md mx-auto">
+        <MonthSwitcher rootData={rootData} setRootData={setRootData} />
+        {tab === "resumo" && <TabResumo data={data} calc={calc} mesLabel={mesLabel} trendData={trendData} />}
+        {tab === "contas" && <TabContas data={data} setData={setData} />}
+        {tab === "simulador" && <TabSimulador data={data} setData={setData} />}
+        {tab === "poupanca" && <TabPoupanca data={data} setData={setData} calc={calc} />}
+        {tab === "editar" && (
+          <TabEditar data={data} setData={setData} mesLabel={mesLabel} resetActiveMonth={resetActiveMonth} />
+        )}
+      </div>
+
+      <BottomNav tab={tab} setTab={setTab} />
+    </div>
+  );
+}
+
+const rootEl = document.getElementById("root");
+ReactDOM.createRoot(rootEl).render(<App />);
+</script>
+</body>
+</html>
