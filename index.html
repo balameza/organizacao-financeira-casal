@@ -112,6 +112,13 @@ const Home = (p) => (
     <path d="M5 10v10h14V10" />
   </IconBase>
 );
+const CreditCard = (p) => (
+  <IconBase {...p}>
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <path d="M2 10h20" />
+    <path d="M6 15h4" />
+  </IconBase>
+);
 const Receipt = (p) => (
   <IconBase {...p}>
     <path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2V3z" />
@@ -322,7 +329,103 @@ const COLORS = {
   leaf: "#3F7A52",
   soil: "#4A3728",
   lilac: "#9B7BC4",
+  steel: "#5B7F95",
 };
+
+// Em qual cartão cada gasto foi pago. Guardamos só o rótulo
+// (nunca número de cartão, validade ou qualquer dado sensível).
+const CARTOES = [
+  { id: "nenhum", label: "Sem cartão" },
+  { id: "barbara", label: "Nubank da Bárbara" },
+  { id: "bruno_xp", label: "XP do Bruno" },
+  { id: "bruno_nubank", label: "Nubank do Bruno" },
+];
+// "bruno" é o valor de quando só existia um "Cartão do Bruno" (antes de separar XP e
+// Nubank). Fica preservado, sem chutar qual cartão era: o app pede pra escolher.
+const CARTAO_ANTIGO_BRUNO = { id: "bruno", label: "Cartão do Bruno (escolha qual)" };
+const CARTAO_IDS = [...CARTOES.map((c) => c.id), CARTAO_ANTIGO_BRUNO.id];
+
+function normCartao(c) {
+  return CARTAO_IDS.includes(c) ? c : "nenhum";
+}
+
+function rotuloCartao(id) {
+  const c = [...CARTOES, CARTAO_ANTIGO_BRUNO].find((x) => x.id === id);
+  return c ? c.label : "Sem cartão";
+}
+
+function corCartao(id) {
+  if (id === "barbara") return COLORS.coral;
+  if (String(id).startsWith("bruno")) return COLORS.teal;
+  return COLORS.inkSoft;
+}
+
+// Cartões que têm dia de fechamento/vencimento configurável (aba Editar)
+const CARTOES_COM_DATAS = [
+  { id: "barbara", titulo: "Nubank da Bárbara", cor: COLORS.coral },
+  { id: "bruno_xp", titulo: "XP do Bruno", cor: COLORS.teal },
+  { id: "bruno_nubank", titulo: "Nubank do Bruno", cor: COLORS.teal },
+];
+
+// Com o que cada despesa da casa é paga: dinheiro (salários) ou um dos vales.
+// "nenhum" = dinheiro. VT só existe pra Bárbara (o Bruno não recebe VT).
+const FONTES_VALE = [
+  { id: "nenhum", label: "Dinheiro" },
+  { id: "va", label: "VA" },
+  { id: "vt_barbara", label: "VT da Bárbara" },
+  { id: "vr_barbara", label: "VR da Bárbara" },
+  { id: "vr_bruno", label: "VR do Bruno" },
+];
+const VALE_IDS = FONTES_VALE.map((f) => f.id);
+
+function normVale(v) {
+  return VALE_IDS.includes(v) ? v : "nenhum";
+}
+
+function rotuloVale(id) {
+  const f = FONTES_VALE.find((x) => x.id === id);
+  return f ? f.label : "Dinheiro";
+}
+
+// As "carteiras" que aparecem na tela inicial
+const CARTEIRAS = [
+  { id: "dinheiro", label: "Dinheiro", sub: "salários", cor: COLORS.primary },
+  { id: "va", label: "VA", sub: "vale-alimentação", cor: COLORS.mustard },
+  { id: "vt_barbara", label: "VT da Bárbara", sub: "vale-transporte", cor: COLORS.teal },
+  { id: "vr_barbara", label: "VR da Bárbara", sub: "vale-refeição", cor: COLORS.coral },
+  { id: "vr_bruno", label: "VR do Bruno", sub: "vale-refeição", cor: COLORS.lilac },
+];
+
+// Preenchimento inicial do "pago com" nos itens que já existiam (só quando o campo ainda
+// não existe no item; depois de definido, nunca é sobrescrito). Vem do que a Bárbara contou:
+//  - transporte (R$ 450) cobre o VT; almoço da Bárbara (R$ 1.056) cobre o VR dela;
+//  - VR do Bruno (R$ 700): R$ 350 de almoço + R$ 350 do delivery (o delivery é R$ 500, os
+//    outros R$ 150 são dinheiro).
+//  - Mercado → VA é SUPOSIÇÃO minha (o VA é de R$ 1.000, igual ao mercado): confirmar.
+const DEFAULT_VALE_POR_ID = {
+  transporteBarbara: { vale: "vt_barbara", valeValor: 0 },
+  almocoBarbara: { vale: "vr_barbara", valeValor: 0 },
+  almocoBruno: { vale: "vr_bruno", valeValor: 0 },
+  delivery: { vale: "vr_bruno", valeValor: 350 },
+  mercado: { vale: "va", valeValor: 0 },
+};
+
+// Dia de fechamento e de vencimento da fatura de cada cartão.
+// Os dias de FECHAMENTO foram informados por Bárbara (Nubank dela: dia 1; Nubank do Bruno:
+// dia 9; XP do Bruno: dia 27). Os VENCIMENTOS dos Nubank (8 e 16) são DEDUZIDOS: segundo o
+// blog da Nubank a fatura fecha sempre 7 dias corridos antes do vencimento. O vencimento da
+// XP não foi informado e o contrato da XP não fixa a distância (o cliente escolhe a data).
+const DEFAULT_CARTOES_CFG = {
+  barbara: { diaFechamento: 1, diaVencimento: 8 },
+  bruno_xp: { diaFechamento: 27, diaVencimento: "" },
+  bruno_nubank: { diaFechamento: 9, diaVencimento: 16 },
+};
+
+const DESTINOS_PARCELA = [
+  { id: "casa", label: "Gasto da casa" },
+  { id: "barbara", label: "Abinha da Bárbara" },
+  { id: "bruno", label: "Abinha do Bruno" },
+];
 
 const DEFAULT_MONTH_KEY = "2026-09";
 
@@ -425,14 +528,91 @@ function monthKeyFromLabel(label) {
 
 // Constrói a estrutura { months, activeMonth } a partir do que estiver salvo,
 // migrando automaticamente o formato antigo (um único mês, sem histórico).
+// Garante que todo gasto tenha o campo "cartao" (dados salvos antes dessa
+// função existir não têm) e que as listas das abinhas existam.
+function normalizeMonthData(m) {
+  const fix = (arr) => (Array.isArray(arr) ? arr : []).map((i) => ({ ...i, cartao: normCartao(i.cartao) }));
+  // despesas da casa: além do cartão, "pago com" (dinheiro ou vale). Se o item nunca teve o
+  // campo, entra o padrão da tabela acima (por id); se já tem, só limpa o valor.
+  const fixCasa = (arr) =>
+    fix(arr).map((i) => {
+      if (i.vale === undefined) {
+        const d = DEFAULT_VALE_POR_ID[i.id];
+        return { ...i, vale: d ? d.vale : "nenhum", valeValor: d ? d.valeValor : 0 };
+      }
+      return { ...i, vale: normVale(i.vale), valeValor: Math.max(Number(i.valeValor) || 0, 0) };
+    });
+  const div = m.divisao || {};
+  return {
+    ...m,
+    parcelasPagas: m.parcelasPagas && typeof m.parcelasPagas === "object" ? m.parcelasPagas : {},
+    gastosFixos: fixCasa(m.gastosFixos),
+    gastosEssenciais: fixCasa(m.gastosEssenciais),
+    gastosNaoEssenciais: fixCasa(m.gastosNaoEssenciais),
+    divisao: {
+      ...DEFAULT_MONTH_DATA.divisao,
+      ...div,
+      gastosBarbara: fix(div.gastosBarbara),
+      gastosBruno: fix(div.gastosBruno),
+    },
+  };
+}
+
+// Campos que ficam na raiz (valem pra todos os meses): compras parceladas e
+// configuração dos cartões. Dados salvos antes disso não têm — entram os padrões.
+function normParcelamento(p) {
+  if (!p || typeof p !== "object") return null;
+  const parcelas = Math.floor(Number(p.parcelas));
+  const valorTotal = Number(p.valorTotal);
+  if (!Number.isFinite(parcelas) || parcelas < 1 || !Number.isFinite(valorTotal)) return null;
+  if (!/^\d{4}-\d{2}$/.test(String(p.inicio))) return null;
+  return {
+    id: String(p.id || uid()),
+    nome: String(p.nome || "Compra parcelada"),
+    valorTotal,
+    parcelas,
+    inicio: String(p.inicio),
+    visivelDe: /^\d{4}-\d{2}$/.test(String(p.visivelDe)) ? String(p.visivelDe) : "",
+    cartao: normCartao(p.cartao),
+    destino: ["casa", "barbara", "bruno"].includes(p.destino) ? p.destino : "casa",
+    dataCompra: typeof p.dataCompra === "string" ? p.dataCompra : "",
+  };
+}
+
+function withRootExtras(root, parsed) {
+  const cfg = (parsed && parsed.cartoes) || {};
+  return {
+    ...root,
+    parcelamentos: Array.isArray(parsed && parsed.parcelamentos)
+      ? parsed.parcelamentos.map(normParcelamento).filter(Boolean)
+      : [],
+    cartoes: {
+      barbara: { ...DEFAULT_CARTOES_CFG.barbara, ...(cfg.barbara || {}) },
+      bruno_xp: { ...DEFAULT_CARTOES_CFG.bruno_xp, ...(cfg.bruno_xp || {}) },
+      bruno_nubank: { ...DEFAULT_CARTOES_CFG.bruno_nubank, ...(cfg.bruno_nubank || {}) },
+    },
+  };
+}
+
 function buildInitialRootData(parsed) {
+  return withRootExtras(buildMonthsRoot(parsed), parsed);
+}
+
+function buildMonthsRoot(parsed) {
   if (parsed && parsed.months && typeof parsed.months === "object") {
     const keys = Object.keys(parsed.months);
     if (keys.length === 0) {
-      return { months: { [DEFAULT_MONTH_KEY]: deepCopy(DEFAULT_MONTH_DATA) }, activeMonth: DEFAULT_MONTH_KEY };
+      return {
+        months: { [DEFAULT_MONTH_KEY]: normalizeMonthData(deepCopy(DEFAULT_MONTH_DATA)) },
+        activeMonth: DEFAULT_MONTH_KEY,
+      };
     }
-    const activeMonth = parsed.months[parsed.activeMonth] ? parsed.activeMonth : keys.sort()[keys.length - 1];
-    return { months: parsed.months, activeMonth };
+    const months = {};
+    keys.forEach((k) => {
+      months[k] = normalizeMonthData(parsed.months[k]);
+    });
+    const activeMonth = months[parsed.activeMonth] ? parsed.activeMonth : keys.sort()[keys.length - 1];
+    return { months, activeMonth };
   }
   if (parsed && parsed.receitas) {
     // formato antigo: um único mês solto, sem histórico
@@ -441,18 +621,27 @@ function buildInitialRootData(parsed) {
     const clone = { ...parsed };
     delete clone.mesReferencia;
     Object.assign(monthData, clone);
-    return { months: { [key]: monthData }, activeMonth: key };
+    return { months: { [key]: normalizeMonthData(monthData) }, activeMonth: key };
   }
-  return { months: { [DEFAULT_MONTH_KEY]: deepCopy(DEFAULT_MONTH_DATA) }, activeMonth: DEFAULT_MONTH_KEY };
+  return {
+    months: { [DEFAULT_MONTH_KEY]: normalizeMonthData(deepCopy(DEFAULT_MONTH_DATA)) },
+    activeMonth: DEFAULT_MONTH_KEY,
+  };
 }
 
+// Um mês novo herda os gastos previstos do mês de partida (zerando "pago"),
+// mas começa com as abinhas VAZIAS: o que cada um gastou no mês passado não
+// pode descontar da sobra do mês novo.
 function criarMesAPartirDe(baseMonthData) {
+  const base = deepCopy(baseMonthData);
   const resetPago = (arr) => arr.map((i) => ({ ...i, pago: false }));
   return {
-    ...deepCopy(baseMonthData),
-    gastosFixos: resetPago(deepCopy(baseMonthData.gastosFixos)),
-    gastosEssenciais: resetPago(deepCopy(baseMonthData.gastosEssenciais)),
-    gastosNaoEssenciais: resetPago(deepCopy(baseMonthData.gastosNaoEssenciais)),
+    ...base,
+    gastosFixos: resetPago(base.gastosFixos),
+    gastosEssenciais: resetPago(base.gastosEssenciais),
+    gastosNaoEssenciais: resetPago(base.gastosNaoEssenciais),
+    parcelasPagas: {},
+    divisao: { ...base.divisao, gastosBarbara: [], gastosBruno: [] },
   };
 }
 
@@ -477,6 +666,116 @@ function uid() {
 
 function deepCopy(obj) {
   return JSON.parse(JSON.stringify(obj));
+}
+
+// ============================================================
+// Compras parceladas
+// Ficam num único lugar (raiz dos dados) e são "projetadas" em cada mês na hora de
+// calcular/mostrar. Assim, editar ou apagar uma compra vale pra todos os meses, e
+// criar um mês novo já traz as parcelas que caem nele.
+// ============================================================
+
+function monthIndex(key) {
+  const [y, m] = String(key).split("-").map(Number);
+  return y * 12 + (m - 1);
+}
+
+function mesesEntre(a, b) {
+  return monthIndex(b) - monthIndex(a);
+}
+
+// Divide o total em N parcelas em centavos. A sobra de centavos fica na 1ª parcela.
+// (Se a compra tiver juros, informe o total JÁ com juros.)
+function valorParcelas(valorTotal, n) {
+  const cents = Math.round((Number(valorTotal) || 0) * 100);
+  const nn = Math.max(1, Math.floor(Number(n) || 1));
+  const base = Math.floor(cents / nn);
+  const resto = cents - base * nn;
+  return Array.from({ length: nn }, (_, i) => (base + (i === 0 ? resto : 0)) / 100);
+}
+
+// Qual parcela cai no mês `monthKey` (ou null se nenhuma).
+function parcelaDoMes(p, monthKey) {
+  const idx = mesesEntre(p.inicio, monthKey) + 1;
+  if (idx < 1 || idx > p.parcelas) return null;
+  if (p.visivelDe && monthKey < p.visivelDe) return null;
+  return { numero: idx, valor: valorParcelas(p.valorTotal, p.parcelas)[idx - 1] };
+}
+
+// Devolve uma CÓPIA do mês com as parcelas que caem nele: as da casa em `gastosParcelas`,
+// as das abinhas junto dos gastos de cada um (marcadas com `virtual: true`).
+// Só pra calcular/mostrar — nunca gravar isso de volta.
+function aplicarParcelamentos(monthData, monthKey, parcelamentos, cartoesCfg) {
+  const lista = Array.isArray(parcelamentos) ? parcelamentos : [];
+  const pagas = monthData.parcelasPagas || {};
+  const out = { casa: [], barbara: [], bruno: [] };
+  lista.forEach((p) => {
+    const info = parcelaDoMes(p, monthKey);
+    if (!info) return;
+    const cfg = cartoesCfg && cartoesCfg[p.cartao];
+    const V = cfg ? Number(cfg.diaVencimento) : NaN;
+    out[p.destino === "barbara" || p.destino === "bruno" ? p.destino : "casa"].push({
+      id: "parc-" + p.id,
+      parcelamentoId: p.id,
+      nome: p.nome,
+      valor: info.valor,
+      cartao: normCartao(p.cartao),
+      responsavel: p.destino === "barbara" ? "Bárbara" : p.destino === "bruno" ? "Bruno" : "Casa",
+      vencimento: Number.isInteger(V) && V >= 1 && V <= 31 ? V : "",
+      pago: !!pagas[p.id],
+      parcela: { numero: info.numero, total: p.parcelas },
+      virtual: true,
+    });
+  });
+  const div = monthData.divisao || {};
+  return {
+    ...monthData,
+    gastosParcelas: out.casa,
+    divisao: {
+      ...div,
+      gastosBarbara: [...(div.gastosBarbara || []), ...out.barbara],
+      gastosBruno: [...(div.gastosBruno || []), ...out.bruno],
+    },
+  };
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function hojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function diaValido(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 31;
+}
+
+// Em qual mês a 1ª parcela aparece na fatura, a partir da data da compra e do cartão.
+// Regra usada (a da Nubank, segundo o blog oficial): compras feitas A PARTIR do dia do
+// fechamento só entram na fatura seguinte. A fatura "do mês" é a que VENCE nesse mês;
+// sem dia de vencimento informado, uso o mês do fechamento.
+function mesDaFatura(dataISO, cfg, fallbackMonth) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataISO || "");
+  if (!m) return { mes: fallbackMonth, motivo: "Informe a data da compra pra eu calcular em qual fatura cai." };
+  const compraMes = `${m[1]}-${m[2]}`;
+  const dia = Number(m[3]);
+  if (!cfg || !diaValido(cfg.diaFechamento)) {
+    return { mes: compraMes, motivo: "Sem dia de fechamento configurado pra esse cartão — usei o mês da compra." };
+  }
+  const C = Number(cfg.diaFechamento);
+  const fechaNoMes = dia < C ? compraMes : shiftMonthKey(compraMes, 1);
+  const temV = diaValido(cfg.diaVencimento);
+  const V = Number(cfg.diaVencimento);
+  const mesFatura = !temV || V > C ? fechaNoMes : shiftMonthKey(fechaNoMes, 1);
+  const motivo =
+    `Fecha dia ${C}: essa compra entra na fatura que fecha em ${monthKeyToLabel(fechaNoMes)}` +
+    (temV
+      ? ` e vence dia ${V} de ${monthKeyToLabel(mesFatura)}.`
+      : ". Sem o dia de vencimento, considerei o mês do fechamento — informe o vencimento em Editar → Cartões pra eu acertar.");
+  return { mes: mesFatura, motivo };
 }
 
 function calcularOrcamento(data) {
@@ -504,8 +803,19 @@ function calcularOrcamento(data) {
   const valorMensalInvestimento = receitaDinheiro * (Number(data.poupanca.pctInvestimento) || 0);
   const totalPoupanca = valorMensalReserva + valorMensalInvestimento;
 
-  const totalAlocado = totalFixos + totalEssenciais + totalNaoEssenciais + totalPoupanca;
+  const totalParcelasCasa = sumValores(data.gastosParcelas || []);
+
+  const totalAlocado = totalFixos + totalEssenciais + totalNaoEssenciais + totalParcelasCasa + totalPoupanca;
   const saldoNaoAlocado = receitaTotal - totalAlocado;
+
+  // Gastos lançados nas abinhas saem do saldo não alocado. O saldo "planejado"
+  // (saldoNaoAlocado) continua sendo a base de cálculo das cotas de cada um;
+  // a sobra real é o que realmente ainda resta depois desses gastos.
+  const div = data.divisao || {};
+  const gastosAbinhaBarbara = sumValores(div.gastosBarbara || []);
+  const gastosAbinhaBruno = sumValores(div.gastosBruno || []);
+  const totalAbinhas = gastosAbinhaBarbara + gastosAbinhaBruno;
+  const sobraReal = saldoNaoAlocado - totalAbinhas;
 
   const mesesAteReserva = valorMensalReserva > 0 ? faltaReserva / valorMensalReserva : null;
 
@@ -515,6 +825,7 @@ function calcularOrcamento(data) {
     totalFixos,
     totalEssenciais,
     totalNaoEssenciais,
+    totalParcelasCasa,
     aluguel,
     gastoEssencialMensal,
     metaReserva,
@@ -524,8 +835,127 @@ function calcularOrcamento(data) {
     totalPoupanca,
     totalAlocado,
     saldoNaoAlocado,
+    gastosAbinhaBarbara,
+    gastosAbinhaBruno,
+    totalAbinhas,
+    sobraReal,
     mesesAteReserva,
   };
+}
+
+// Saldo do mês por "carteira" (dinheiro e cada vale): quanto entrou, quanto já foi gasto,
+// quanto ainda vai sair e quanto sobra. `data` precisa ser o mês COM as parcelas aplicadas
+// e `calc` o resultado de calcularOrcamento(data).
+//  - "Já gasto" = despesas marcadas como pagas (aba Contas) + gastos lançados nas abinhas.
+//    (parcela de compra parcelada só conta quando marcada como paga.)
+//  - Cada despesa da casa sai do vale escolhido em "Pago com" (até o limite do que entrou
+//    naquele vale; o que passar sai do dinheiro). Parcelas e gastos das abinhas = dinheiro.
+//  - Reserva + investimentos são separados do dinheiro: não são gasto, mas não sobram.
+function calcularCarteiras(data, calc) {
+  const num = (x) => Number(x) || 0;
+  const r = data.receitas || {};
+  const entrada = {
+    dinheiro: num(r.salarioBarbara) + num(r.salarioBruno),
+    va: num(r.va),
+    vt_barbara: num(r.vtBarbara),
+    vr_barbara: num(r.vrBarbara),
+    vr_bruno: num(r.vrBruno),
+  };
+  const restante = { ...entrada };
+  const previsto = { dinheiro: 0, va: 0, vt_barbara: 0, vr_barbara: 0, vr_bruno: 0 };
+  const pago = { ...previsto };
+  const excedeu = { ...previsto }; // quanto passou do vale e foi pro dinheiro
+
+  const casa = [...(data.gastosFixos || []), ...(data.gastosEssenciais || []), ...(data.gastosNaoEssenciais || [])];
+  casa.forEach((i) => {
+    const v = num(i.valor);
+    if (v === 0) return;
+    const w = normVale(i.vale);
+    let uso = 0;
+    if (w !== "nenhum" && v > 0) {
+      const quer = num(i.valeValor) > 0 ? Math.min(num(i.valeValor), v) : v;
+      uso = Math.min(quer, restante[w]);
+      restante[w] -= uso;
+      if (quer > uso) excedeu[w] += quer - uso;
+    }
+    const emDinheiro = v - uso;
+    previsto.dinheiro += emDinheiro;
+    if (uso > 0) previsto[w] += uso;
+    if (i.pago) {
+      pago.dinheiro += emDinheiro;
+      if (uso > 0) pago[w] += uso;
+    }
+  });
+  (data.gastosParcelas || []).forEach((i) => {
+    const v = num(i.valor);
+    previsto.dinheiro += v;
+    if (i.pago) pago.dinheiro += v;
+  });
+  const div = data.divisao || {};
+  [...(div.gastosBarbara || []), ...(div.gastosBruno || [])].forEach((g) => {
+    const v = num(g.valor);
+    previsto.dinheiro += v;
+    // gasto lançado na abinha já aconteceu; parcela só conta como gasta se marcada como paga
+    if (!g.virtual || g.pago) pago.dinheiro += v;
+  });
+
+  const reservado = { dinheiro: num(calc && calc.totalPoupanca), va: 0, vt_barbara: 0, vr_barbara: 0, vr_bruno: 0 };
+  const carteiras = CARTEIRAS.map((c) => ({
+    ...c,
+    entrada: entrada[c.id],
+    gasto: pago[c.id],
+    aPagar: previsto[c.id] - pago[c.id],
+    reservado: reservado[c.id],
+    sobra: entrada[c.id] - previsto[c.id] - reservado[c.id],
+    aindaTem: entrada[c.id] - pago[c.id],
+    excedeu: excedeu[c.id],
+  }));
+  const soma = (campo, filtro) => carteiras.filter(filtro || (() => true)).reduce((a, c) => a + c[campo], 0);
+  const ehVale = (c) => c.id !== "dinheiro";
+  return {
+    carteiras,
+    totalEntrada: soma("entrada"),
+    totalGasto: soma("gasto"),
+    totalAPagar: soma("aPagar"),
+    totalReservado: soma("reservado"),
+    aindaTemos: soma("aindaTem"),
+    sobraDinheiro: carteiras[0].sobra,
+    sobraVales: soma("sobra", ehVale),
+    sobraTotal: soma("sobra"),
+  };
+}
+
+// Soma, por cartão, tudo que foi marcado como pago nele no mês
+// (gastos fixos, essenciais, não essenciais e gastos lançados nas abinhas).
+function calcularCartoes(data) {
+  const out = {
+    barbara: { total: 0, itens: [] },
+    bruno_xp: { total: 0, itens: [] },
+    bruno_nubank: { total: 0, itens: [] },
+    bruno: { total: 0, itens: [] }, // gastos marcados antes de separar XP e Nubank do Bruno
+  };
+  const coletar = (arr, origem) => {
+    (arr || []).forEach((i) => {
+      const c = normCartao(i.cartao);
+      const v = Number(i.valor) || 0;
+      if (c === "nenhum" || v === 0) return;
+      out[c].total += v;
+      out[c].itens.push({
+        id: i.id,
+        nome: i.nome,
+        valor: v,
+        origem: i.virtual && i.parcela ? `Parcela ${i.parcela.numero}/${i.parcela.total} · ${origem}` : origem,
+      });
+    });
+  };
+  const div = data.divisao || {};
+  coletar(data.gastosFixos, "Fixo");
+  coletar(data.gastosEssenciais, "Essencial");
+  coletar(data.gastosNaoEssenciais, "Não essencial");
+  coletar(data.gastosParcelas, "Casa");
+  coletar(div.gastosBarbara, "Abinha da Bárbara");
+  coletar(div.gastosBruno, "Abinha do Bruno");
+  return out;
 }
 
 function calcularDivisao(data, saldoNaoAlocado) {
@@ -577,6 +1007,691 @@ function PersonBadge({ pessoa }) {
     >
       {pessoa || "Casa"}
     </span>
+  );
+}
+
+// Seletor de cartão usado em cada gasto: Sem cartão / Nubank da Bárbara / XP do Bruno / Nubank do Bruno
+function CartaoSelect({ value, onChange }) {
+  const v = normCartao(value);
+  const color = corCartao(v);
+  // gasto marcado antes de separar os cartões do Bruno: mostra a opção antiga até ele escolher
+  const opcoes = v === CARTAO_ANTIGO_BRUNO.id ? [...CARTOES, CARTAO_ANTIGO_BRUNO] : CARTOES;
+  return (
+    <label className="inline-flex items-center gap-1">
+      <CreditCard size={12} color={color} />
+      <select
+        value={v}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Cartão usado neste gasto"
+        className="text-xs bg-transparent outline-none"
+        style={{ color, fontWeight: v === "nenhum" ? 400 : 600 }}
+      >
+        {opcoes.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+// "Pago com": dinheiro ou um dos vales (VA, VT, VR). Se for vale, dá pra dizer quanto
+// desse gasto sai do vale (vazio = tudo) — ex.: delivery de R$ 500, R$ 350 no VR e o resto em dinheiro.
+function FonteSelect({ vale, valeValor, onChangeVale, onChangeValor }) {
+  const v = normVale(vale);
+  const cor = v === "nenhum" ? COLORS.inkSoft : COLORS.primary;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs">
+      <span style={{ color: COLORS.inkSoft }}>Pago com</span>
+      <select
+        value={v}
+        onChange={(e) => onChangeVale(e.target.value)}
+        aria-label="Pago com (dinheiro ou vale)"
+        className="text-xs bg-transparent outline-none"
+        style={{ color: cor, fontWeight: v === "nenhum" ? 400 : 600 }}
+      >
+        {FONTES_VALE.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.label}
+          </option>
+        ))}
+      </select>
+      {v !== "nenhum" && (
+        <>
+          <span style={{ color: COLORS.inkSoft }}>· R$</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="tudo"
+            aria-label="Quanto desse gasto sai do vale (vazio = tudo)"
+            value={Number(valeValor) > 0 ? valeValor : ""}
+            onChange={(e) => onChangeValor(Math.max(parseFloat(e.target.value) || 0, 0))}
+            className="w-14 text-xs bg-transparent outline-none border-b"
+            style={{ color: COLORS.ink, borderColor: COLORS.border }}
+          />
+        </>
+      )}
+    </span>
+  );
+}
+
+// Barra de uma carteira: já gasto | falta pagar | guardado (reserva+invest.) | sobra (vazio)
+function BarraCarteira({ entrada, gasto, aPagar, reservado, cor }) {
+  const pct = (v) => (entrada > 0 ? Math.max(0, (v / entrada) * 100) : 0);
+  let g = pct(gasto);
+  let a = pct(aPagar);
+  let r = pct(reservado);
+  const total = g + a + r;
+  if (total > 100) {
+    const f = 100 / total;
+    g *= f;
+    a *= f;
+    r *= f;
+  }
+  return (
+    <div className="flex h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: "#EFE8D6" }}>
+      <div style={{ width: `${g}%`, backgroundColor: cor }} />
+      <div style={{ width: `${a}%`, backgroundColor: cor, opacity: 0.35 }} />
+      <div style={{ width: `${r}%`, backgroundColor: COLORS.steel }} />
+    </div>
+  );
+}
+
+// Tela inicial: saldo total do mês dividido em dinheiro e vales + quanto já foi gasto e quanto sobra
+function SaldoCarteiras({ cart, calc }) {
+  const visiveis = cart.carteiras.filter((c) => c.entrada > 0 || c.gasto > 0 || c.aPagar > 0);
+  const dinheiro = cart.carteiras[0];
+  const vales = visiveis.filter((c) => c.id !== "dinheiro");
+  return (
+    <>
+      <div className="rounded-3xl p-5" style={{ backgroundColor: COLORS.primaryDark }}>
+        <p className="text-sm" style={{ color: "#D9C7EA" }}>
+          Saldo total do mês
+        </p>
+        <p className="font-display text-4xl text-white mt-1">{formatBRL(cart.totalEntrada)}</p>
+        <p className="text-xs mt-1" style={{ color: "#B79ACC" }}>
+          tudo que entra no mês: salários + vales
+        </p>
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="col-span-2 rounded-2xl px-3 py-2.5" style={{ backgroundColor: "rgba(255,255,255,0.10)" }}>
+            <p className="text-xs" style={{ color: "#D9C7EA" }}>
+              Dinheiro (salários)
+            </p>
+            <p className="font-display text-2xl text-white mt-0.5">{formatBRL(dinheiro.entrada)}</p>
+          </div>
+          {vales.map((c) => (
+            <div key={c.id} className="rounded-2xl px-3 py-2" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+              <p className="flex items-center gap-1.5 text-xs" style={{ color: "#D9C7EA" }}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.cor }} />
+                {c.label}
+              </p>
+              <p className="text-base text-white font-medium mt-0.5">{formatBRL(c.entrada)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-3xl p-4 border" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+          Quanto já gastamos
+        </p>
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="rounded-2xl p-2.5 flex flex-col justify-between" style={{ backgroundColor: "#F3EDDD" }}>
+            <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+              Já gastamos
+            </p>
+            <p className="font-display text-lg mt-0.5" style={{ color: COLORS.primaryDark }}>
+              {formatBRL(cart.totalGasto)}
+            </p>
+          </div>
+          <div className="rounded-2xl p-2.5 flex flex-col justify-between" style={{ backgroundColor: "#F3EDDD" }}>
+            <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+              Falta pagar
+            </p>
+            <p className="font-display text-lg mt-0.5" style={{ color: COLORS.primaryDark }}>
+              {formatBRL(cart.totalAPagar)}
+            </p>
+          </div>
+          <div className="rounded-2xl p-2.5 flex flex-col justify-between" style={{ backgroundColor: cart.sobraDinheiro < 0 ? "#F6E3DF" : "#E4EFE6" }}>
+            <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+              Dinheiro sobrando
+            </p>
+            <p className="font-display text-lg mt-0.5" style={{ color: cart.sobraDinheiro < 0 ? COLORS.danger : COLORS.leaf }}>
+              {formatBRL(cart.sobraDinheiro)}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs mt-2" style={{ color: COLORS.inkSoft }}>
+          {cart.sobraDinheiro < 0
+            ? "Atenção: o previsto passa do dinheiro que entra no mês."
+            : cart.sobraDinheiro > 0
+            ? "Dinheiro livre depois de pagar tudo que está previsto e separar reserva + investimentos."
+            : "Todo o dinheiro do mês já tem destino."}
+          {cart.sobraVales > 0.009 && ` Sobra ainda ${formatBRL(cart.sobraVales)} em vales (só servem pra comida/transporte).`}
+        </p>
+
+        <div className="space-y-4 mt-4">
+          {visiveis.map((c) => (
+            <div key={c.id}>
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm" style={{ color: COLORS.ink }}>
+                  {c.label}
+                </span>
+                <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+                  entrou {formatBRL(c.entrada)}
+                </span>
+              </div>
+              <div className="mt-1.5">
+                <BarraCarteira entrada={c.entrada} gasto={c.gasto} aPagar={c.aPagar} reservado={c.reservado} cor={c.cor} />
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs mt-1.5" style={{ color: COLORS.inkSoft }}>
+                <span>Gasto {formatBRL(c.gasto)}</span>
+                <span>Falta pagar {formatBRL(c.aPagar)}</span>
+                {c.reservado > 0 && <span>Guardado {formatBRL(c.reservado)}</span>}
+                <span style={{ color: c.sobra < -0.009 ? COLORS.danger : COLORS.leaf, fontWeight: 600 }}>
+                  Sobra {formatBRL(c.sobra)}
+                </span>
+              </div>
+              {c.excedeu > 0.009 && (
+                <p className="text-xs mt-0.5" style={{ color: COLORS.danger }}>
+                  Passou do vale em {formatBRL(c.excedeu)}: essa parte saiu do dinheiro.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mt-3" style={{ color: COLORS.inkSoft }}>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS.primary }} /> já gasto
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS.primary, opacity: 0.35 }} /> falta pagar
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS.steel }} /> guardado (reserva + invest.)
+          </span>
+        </div>
+
+        <div className="mt-4 pt-3 border-t text-xs space-y-1" style={{ borderColor: COLORS.border, color: COLORS.inkSoft }}>
+          <div className="flex justify-between font-medium" style={{ color: COLORS.ink }}>
+            <span>Sobra real do mês (dinheiro + vales)</span>
+            <span>{formatBRL(calc.sobraReal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Saldo não alocado (planejado)</span>
+            <span>{formatBRL(calc.saldoNaoAlocado)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>− Já gasto nas abinhas</span>
+            <span>{formatBRL(calc.totalAbinhas)}</span>
+          </div>
+        </div>
+
+        <p className="text-xs mt-3" style={{ color: COLORS.inkSoft }}>
+          "Já gastamos" = contas marcadas como pagas (aba Contas) + gastos lançados nas abinhas. Cada despesa sai do
+          vale indicado em Editar → "Pago com"; o que passar do vale sai do dinheiro.
+        </p>
+      </div>
+    </>
+  );
+}
+
+function descCfgCartao(cfg) {
+  if (!cfg) return "";
+  const partes = [];
+  if (diaValido(cfg.diaFechamento)) partes.push(`fecha dia ${Number(cfg.diaFechamento)}`);
+  if (diaValido(cfg.diaVencimento)) partes.push(`vence dia ${Number(cfg.diaVencimento)}`);
+  return partes.join(" · ");
+}
+
+// Campo de "dia do mês" (1 a 31); vazio = não informado
+function DiaField({ label, value, onChange }) {
+  return (
+    <label className="block">
+      <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+        {label}
+      </span>
+      <div className="flex items-center gap-1 border-b py-1.5" style={{ borderColor: COLORS.border }}>
+        <span className="text-sm" style={{ color: COLORS.inkSoft }}>
+          dia
+        </span>
+        <input
+          type="number"
+          min="1"
+          max="31"
+          placeholder="—"
+          value={value === "" || value == null ? "" : value}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") return onChange("");
+            const n = Math.floor(Number(raw));
+            onChange(Number.isFinite(n) ? Math.min(31, Math.max(1, n)) : "");
+          }}
+          className="w-full text-sm bg-transparent outline-none"
+          style={{ color: COLORS.ink }}
+        />
+      </div>
+    </label>
+  );
+}
+
+const inputLinha = "w-full text-sm bg-transparent outline-none border-b py-1.5";
+
+// Formulário: valor total + nº de parcelas. O app distribui pelos meses seguintes.
+function ParceladoForm({ cartoesCfg, monthKey, destinoFixo, onAdd, onCancel }) {
+  const [nome, setNome] = useState("");
+  const [valorTotal, setValorTotal] = useState("");
+  const [parcelas, setParcelas] = useState("");
+  const [cartao, setCartao] = useState(destinoFixo === "bruno" ? "bruno_xp" : "barbara");
+  const [destino, setDestino] = useState(destinoFixo || "casa");
+  const [dataCompra, setDataCompra] = useState(hojeISO());
+  const [inicioManual, setInicioManual] = useState("");
+
+  const sug =
+    cartao === "nenhum"
+      ? {
+          mes: /^\d{4}-\d{2}/.test(dataCompra) ? dataCompra.slice(0, 7) : monthKey,
+          motivo: "Sem cartão: a 1ª parcela cai no mês da compra.",
+        }
+      : mesDaFatura(dataCompra, cartoesCfg[cartao], monthKey);
+  const inicio = inicioManual || sug.mes;
+
+  const vt = Number(valorTotal);
+  const n = Math.floor(Number(parcelas));
+  const valido = nome.trim() !== "" && vt > 0 && n >= 1 && n <= 60 && /^\d{4}-\d{2}$/.test(inicio);
+  const lista = valido ? valorParcelas(vt, n) : [];
+  const fim = valido ? shiftMonthKey(inicio, n - 1) : "";
+  const jaComecou = valido && inicio < monthKey;
+
+  function enviar() {
+    if (!valido) return;
+    onAdd({
+      id: uid(),
+      nome: nome.trim(),
+      valorTotal: vt,
+      parcelas: n,
+      inicio,
+      // parcelas anteriores ao mês aberto agora não mexem no histórico
+      visivelDe: inicio > monthKey ? inicio : monthKey,
+      cartao,
+      destino,
+      dataCompra,
+    });
+  }
+
+  return (
+    <div className="rounded-2xl border p-3 space-y-3" style={{ borderColor: COLORS.primary, backgroundColor: "#FBF8FE" }}>
+      <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+        Nova compra parcelada
+      </p>
+
+      <label className="block">
+        <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+          O que foi
+        </span>
+        <input
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Ex.: Sofá"
+          className={inputLinha}
+          style={{ color: COLORS.ink, borderColor: COLORS.border }}
+        />
+      </label>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Valor total
+          </span>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={valorTotal}
+            onChange={(e) => setValorTotal(e.target.value)}
+            placeholder="R$"
+            className={inputLinha}
+            style={{ color: COLORS.ink, borderColor: COLORS.border }}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Nº de parcelas
+          </span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="1"
+            max="60"
+            value={parcelas}
+            onChange={(e) => setParcelas(e.target.value)}
+            placeholder="Ex.: 10"
+            className={inputLinha}
+            style={{ color: COLORS.ink, borderColor: COLORS.border }}
+          />
+        </label>
+      </div>
+
+      <p className="text-xs -mt-1" style={{ color: COLORS.inkSoft }}>
+        Se a compra tiver juros, informe o valor total já com os juros. A sobra de centavos da divisão fica na 1ª
+        parcela, então pode haver diferença de centavos pra fatura real.
+      </p>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Cartão
+          </span>
+          <select
+            value={cartao}
+            onChange={(e) => {
+              setCartao(e.target.value);
+              setInicioManual("");
+            }}
+            className={inputLinha}
+            style={{ color: COLORS.ink, borderColor: COLORS.border }}
+          >
+            {CARTOES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Data da compra
+          </span>
+          <input
+            type="date"
+            value={dataCompra}
+            onChange={(e) => {
+              setDataCompra(e.target.value);
+              setInicioManual("");
+            }}
+            className={inputLinha}
+            style={{ color: COLORS.ink, borderColor: COLORS.border }}
+          />
+        </label>
+      </div>
+
+      {!destinoFixo && (
+        <label className="block">
+          <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+            Quem paga
+          </span>
+          <select
+            value={destino}
+            onChange={(e) => setDestino(e.target.value)}
+            className={inputLinha}
+            style={{ color: COLORS.ink, borderColor: COLORS.border }}
+          >
+            {DESTINOS_PARCELA.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <label className="block">
+        <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+          1ª parcela cai em
+        </span>
+        <input
+          type="month"
+          value={inicio}
+          onChange={(e) => setInicioManual(e.target.value)}
+          className={inputLinha}
+          style={{ color: COLORS.ink, borderColor: COLORS.border }}
+        />
+        <span className="block text-xs mt-1" style={{ color: COLORS.inkSoft }}>
+          {inicioManual && inicioManual !== sug.mes ? "Você ajustou o mês manualmente." : sug.motivo}
+        </span>
+      </label>
+
+      {valido && (
+        <div className="rounded-xl p-2.5 text-xs" style={{ backgroundColor: "#EFE6F5", color: COLORS.primaryDark }}>
+          {n}x de {formatBRL(lista[1] !== undefined ? lista[1] : lista[0])}
+          {lista[1] !== undefined && lista[0] !== lista[1] ? ` (1ª de ${formatBRL(lista[0])})` : ""} · de{" "}
+          {monthKeyToLabel(inicio)} até {monthKeyToLabel(fim)}
+          {jaComecou && (
+            <span className="block mt-1" style={{ color: COLORS.inkSoft }}>
+              Começou antes de {monthKeyToLabel(monthKey)}: os meses anteriores do histórico não são alterados.
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={enviar}
+          disabled={!valido}
+          className="flex-1 text-sm py-2.5 rounded-full text-white font-medium"
+          style={{ backgroundColor: COLORS.primary, opacity: valido ? 1 : 0.45 }}
+        >
+          Cadastrar
+        </button>
+        <button
+          onClick={onCancel}
+          className="flex-1 text-sm py-2.5 rounded-full border"
+          style={{ borderColor: COLORS.border, color: COLORS.inkSoft }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Lista de todas as compras parceladas (e onde cada uma está neste mês)
+function ParcelamentosCard({ parcelamentos, setParcelamentos, cartoesCfg, monthKey }) {
+  const [showForm, setShowForm] = useState(false);
+  const [confirmId, setConfirmId] = useState(null);
+  const labelDe = (arr, id) => (arr.find((x) => x.id === id) || arr[0]).label;
+
+  return (
+    <div className="rounded-3xl border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+      <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+        Compras parceladas
+      </p>
+      <p className="text-xs mt-1 mb-3" style={{ color: COLORS.inkSoft }}>
+        Cadastre uma vez (valor total + nº de parcelas): a parcela aparece sozinha em cada mês até acabar.
+      </p>
+
+      {parcelamentos.length === 0 && !showForm && (
+        <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>
+          Nenhuma compra parcelada cadastrada.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {parcelamentos.map((p) => {
+          const info = parcelaDoMes(p, monthKey);
+          const primeiroMes = p.visivelDe && p.visivelDe > p.inicio ? p.visivelDe : p.inicio;
+          const ultimoMes = shiftMonthKey(p.inicio, p.parcelas - 1);
+          let status;
+          let faltam = "";
+          if (info) {
+            status = `Parcela ${info.numero}/${p.parcelas} neste mês · ${formatBRL(info.valor)}`;
+            const restantes = valorParcelas(p.valorTotal, p.parcelas).slice(info.numero);
+            if (restantes.length > 0) {
+              faltam = `Depois desta, faltam ${restantes.length} (${formatBRL(restantes.reduce((a, b) => a + b, 0))}), até ${monthKeyToLabel(ultimoMes)}`;
+            } else {
+              faltam = "Última parcela";
+            }
+          } else if (monthKey < primeiroMes) {
+            status = `Começa em ${monthKeyToLabel(primeiroMes)}`;
+          } else {
+            status = `Terminou em ${monthKeyToLabel(ultimoMes)}`;
+          }
+          return (
+            <div key={p.id} className="border-b pb-2" style={{ borderColor: COLORS.border }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm truncate" style={{ color: COLORS.ink }}>
+                    {p.nome}
+                  </p>
+                  <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+                    {formatBRL(p.valorTotal)} em {p.parcelas}x · {rotuloCartao(p.cartao)} ·{" "}
+                    {labelDe(DESTINOS_PARCELA, p.destino)}
+                  </p>
+                </div>
+                {confirmId === p.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        setParcelamentos((prev) => prev.filter((x) => x.id !== p.id));
+                        setConfirmId(null);
+                      }}
+                      className="text-xs px-2 py-1 rounded-full text-white"
+                      style={{ backgroundColor: COLORS.danger }}
+                    >
+                      Apagar
+                    </button>
+                    <button onClick={() => setConfirmId(null)} className="text-xs px-1" style={{ color: COLORS.inkSoft }}>
+                      Não
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmId(p.id)} aria-label="Apagar compra parcelada" className="shrink-0">
+                    <Trash2 size={14} color={COLORS.inkSoft} />
+                  </button>
+                )}
+              </div>
+              <p className="text-xs mt-1 font-medium" style={{ color: info ? COLORS.primary : COLORS.inkSoft }}>
+                {status}
+              </p>
+              {faltam && (
+                <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+                  {faltam}
+                </p>
+              )}
+              {confirmId === p.id && (
+                <p className="text-xs mt-1" style={{ color: COLORS.danger }}>
+                  Apaga essa compra de TODOS os meses (passados e futuros).
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {showForm ? (
+        <div className="mt-3">
+          <ParceladoForm
+            cartoesCfg={cartoesCfg}
+            monthKey={monthKey}
+            onAdd={(p) => {
+              setParcelamentos((prev) => [...prev, p]);
+              setShowForm(false);
+            }}
+            onCancel={() => setShowForm(false)}
+          />
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowForm(true)}
+          className="mt-3 flex items-center gap-1 text-xs font-medium"
+          style={{ color: COLORS.primary }}
+        >
+          <Plus size={14} /> Adicionar compra parcelada
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Quanto está marcado em cada cartão neste mês (clica pra ver os itens)
+function FaturasCard({ data, cfg }) {
+  const cartoes = useMemo(() => calcularCartoes(data), [data]);
+  const [aberto, setAberto] = useState(null);
+  const lista = [
+    { id: "barbara", titulo: "Nubank da Bárbara", cor: COLORS.coral, soft: "#F7E9E3" },
+    { id: "bruno_xp", titulo: "XP do Bruno", cor: COLORS.teal, soft: "#E6EEEC" },
+    { id: "bruno_nubank", titulo: "Nubank do Bruno", cor: COLORS.teal, soft: "#E6EEEC" },
+  ];
+  // só aparece se ainda houver gasto marcado no antigo "Cartão do Bruno" (sem dizer qual)
+  if (cartoes.bruno.itens.length > 0) {
+    lista.push({ id: "bruno", titulo: "Cartão do Bruno (qual?)", cor: COLORS.teal, soft: "#E6EEEC" });
+  }
+  const detalhe = aberto ? cartoes[aberto] : null;
+
+  return (
+    <div className="rounded-3xl border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+      <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+        No cartão neste mês
+      </p>
+      <p className="text-xs mt-1 mb-3" style={{ color: COLORS.inkSoft }}>
+        Soma do que foi marcado em cada cartão (contas + gastos das abinhas). A fatura em si pode vencer
+        só no mês seguinte.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {lista.map((c) => {
+          const ativo = aberto === c.id;
+          return (
+            <button
+              key={c.id}
+              onClick={() => setAberto(ativo ? null : c.id)}
+              className="rounded-2xl p-3 text-left border"
+              style={{ backgroundColor: c.soft, borderColor: ativo ? c.cor : "transparent" }}
+              aria-expanded={ativo}
+            >
+              <span className="flex items-center gap-1 text-xs" style={{ color: COLORS.inkSoft }}>
+                <CreditCard size={12} color={c.cor} /> {c.titulo}
+              </span>
+              <span className="block font-display text-xl mt-1" style={{ color: c.cor }}>
+                {formatBRL(cartoes[c.id].total)}
+              </span>
+              <span className="block text-xs" style={{ color: COLORS.inkSoft }}>
+                {cartoes[c.id].itens.length} {cartoes[c.id].itens.length === 1 ? "lançamento" : "lançamentos"}
+              </span>
+              {cfg && descCfgCartao(cfg[c.id]) && (
+                <span className="block text-xs" style={{ color: COLORS.inkSoft }}>
+                  {descCfgCartao(cfg[c.id])}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {detalhe && (
+        <div className="mt-3 space-y-1.5">
+          {aberto === "bruno" && (
+            <p className="text-xs" style={{ color: COLORS.danger }}>
+              Esses gastos foram marcados quando só existia um "cartão do Bruno". Escolha XP ou Nubank em cada um
+              (na lista de contas abaixo ou em Editar).
+            </p>
+          )}
+          {detalhe.itens.length === 0 && (
+            <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+              Nenhum gasto marcado nesse cartão ainda.
+            </p>
+          )}
+          {detalhe.itens.map((it) => (
+            <div
+              key={it.origem + it.id}
+              className="flex items-center justify-between border-b pb-1.5"
+              style={{ borderColor: COLORS.border }}
+            >
+              <div className="min-w-0 pr-2">
+                <p className="text-sm truncate" style={{ color: COLORS.ink }}>
+                  {it.nome}
+                </p>
+                <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+                  {it.origem}
+                </p>
+              </div>
+              <span className="text-sm whitespace-nowrap" style={{ color: COLORS.primaryDark }}>
+                {formatBRL(it.valor)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -810,7 +1925,20 @@ function EditableCategoryList({ title, items, onChange }) {
     onChange(items.filter((i) => i.id !== id));
   }
   function addItem() {
-    onChange([...items, { id: uid(), nome: "Novo item", responsavel: "Casa", valor: 0, vencimento: "", pago: false }]);
+    onChange([
+      ...items,
+      {
+        id: uid(),
+        nome: "Novo item",
+        responsavel: "Casa",
+        valor: 0,
+        vencimento: "",
+        pago: false,
+        cartao: "nenhum",
+        vale: "nenhum",
+        valeValor: 0,
+      },
+    ]);
   }
   const total = sumValores(items);
 
@@ -845,7 +1973,7 @@ function EditableCategoryList({ title, items, onChange }) {
                 <Trash2 size={15} color={COLORS.inkSoft} />
               </button>
             </div>
-            <div className="mt-1">
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
               <select
                 value={item.responsavel}
                 onChange={(e) => updateItem(item.id, "responsavel", e.target.value)}
@@ -857,6 +1985,19 @@ function EditableCategoryList({ title, items, onChange }) {
                 <option>Bárbara</option>
                 <option>Bruno</option>
               </select>
+              <CartaoSelect value={item.cartao} onChange={(v) => updateItem(item.id, "cartao", v)} />
+              <FonteSelect
+                vale={item.vale}
+                valeValor={item.valeValor}
+                onChangeVale={(v) =>
+                  onChange(
+                    items.map((i) =>
+                      i.id === item.id ? { ...i, vale: v, valeValor: v === "nenhum" ? 0 : i.valeValor || 0 } : i
+                    )
+                  )
+                }
+                onChangeValor={(v) => updateItem(item.id, "valeValor", v)}
+              />
             </div>
           </div>
         ))}
@@ -1034,12 +2175,26 @@ function MonthSwitcher({ rootData, setRootData }) {
   );
 }
 
-function PersonLedger({ cota, gastos, onChangeGastos, accentColor, accentSoft }) {
-  const total = sumValores(gastos);
+function PersonLedger({
+  cota,
+  gastos,
+  onChangeGastos,
+  accentColor,
+  accentSoft,
+  parcelas = [],
+  destino,
+  cartoesCfg,
+  monthKey,
+  onAddParcelado,
+}) {
+  const [showForm, setShowForm] = useState(false);
+  // `parcelas` são as parcelas de compras parceladas que caem neste mês (só leitura aqui;
+  // pra apagar, é em Contas → Compras parceladas). Entram no gasto da abinha.
+  const total = sumValores(gastos) + sumValores(parcelas);
   const restante = cota - total;
 
   function addGasto() {
-    onChangeGastos([...gastos, { id: uid(), nome: "Novo gasto", valor: 0, data: "" }]);
+    onChangeGastos([...gastos, { id: uid(), nome: "Novo gasto", valor: 0, data: "", cartao: "nenhum" }]);
   }
   function updateGasto(id, field, value) {
     onChangeGastos(gastos.map((g) => (g.id === id ? { ...g, [field]: value } : g)));
@@ -1077,7 +2232,7 @@ function PersonLedger({ cota, gastos, onChangeGastos, accentColor, accentSoft })
         </div>
       </div>
 
-      {gastos.length === 0 && (
+      {gastos.length === 0 && parcelas.length === 0 && (
         <p className="text-xs mb-2" style={{ color: COLORS.inkSoft }}>
           Nenhum gasto lançado ainda nesse mês.
         </p>
@@ -1085,34 +2240,79 @@ function PersonLedger({ cota, gastos, onChangeGastos, accentColor, accentSoft })
 
       <div className="space-y-2">
         {gastos.map((g) => (
-          <div key={g.id} className="flex items-center gap-2 border-b pb-1.5" style={{ borderColor: COLORS.border }}>
-            <input
-              value={g.nome}
-              onChange={(e) => updateGasto(g.id, "nome", e.target.value)}
-              className="flex-1 text-sm bg-transparent outline-none"
-              style={{ color: COLORS.ink }}
-              placeholder="Descrição"
-            />
-            <input
-              type="number"
-              value={g.valor}
-              onChange={(e) => updateGasto(g.id, "valor", parseFloat(e.target.value) || 0)}
-              className="w-16 text-sm text-right bg-transparent outline-none"
-              style={{ color: COLORS.ink }}
-            />
-            <button onClick={() => removeGasto(g.id)} aria-label="Remover gasto">
-              <Trash2 size={13} color={COLORS.inkSoft} />
-            </button>
+          <div key={g.id} className="border-b pb-1.5" style={{ borderColor: COLORS.border }}>
+            <div className="flex items-center gap-2">
+              <input
+                value={g.nome}
+                onChange={(e) => updateGasto(g.id, "nome", e.target.value)}
+                className="flex-1 text-sm bg-transparent outline-none"
+                style={{ color: COLORS.ink }}
+                placeholder="Descrição"
+              />
+              <input
+                type="number"
+                value={g.valor}
+                onChange={(e) => updateGasto(g.id, "valor", parseFloat(e.target.value) || 0)}
+                className="w-16 text-sm text-right bg-transparent outline-none"
+                style={{ color: COLORS.ink }}
+              />
+              <button onClick={() => removeGasto(g.id)} aria-label="Remover gasto">
+                <Trash2 size={13} color={COLORS.inkSoft} />
+              </button>
+            </div>
+            <div className="mt-1">
+              <CartaoSelect value={g.cartao} onChange={(v) => updateGasto(g.id, "cartao", v)} />
+            </div>
           </div>
         ))}
       </div>
-      <button
-        onClick={addGasto}
-        className="mt-3 flex items-center gap-1 text-xs font-medium"
-        style={{ color: accentColor }}
-      >
-        <Plus size={13} /> Adicionar gasto
-      </button>
+      {parcelas.length > 0 && (
+        <div className="space-y-2 mt-2">
+          {parcelas.map((g) => (
+            <div key={g.id} className="flex items-center gap-2 border-b pb-1.5" style={{ borderColor: COLORS.border }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm truncate" style={{ color: COLORS.ink }}>
+                  {g.nome}
+                </p>
+                <p className="text-xs" style={{ color: COLORS.inkSoft }}>
+                  Parcela {g.parcela.numero}/{g.parcela.total} · {g.cartao === "nenhum" ? "sem cartão" : rotuloCartao(g.cartao)}
+                </p>
+              </div>
+              <span className="text-sm" style={{ color: COLORS.ink }}>
+                {formatBRL(g.valor)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+        <button onClick={addGasto} className="flex items-center gap-1 text-xs font-medium" style={{ color: accentColor }}>
+          <Plus size={13} /> Adicionar gasto
+        </button>
+        {onAddParcelado && !showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1 text-xs font-medium"
+            style={{ color: accentColor }}
+          >
+            <CreditCard size={13} color={accentColor} /> Compra parcelada
+          </button>
+        )}
+      </div>
+      {onAddParcelado && showForm && (
+        <div className="mt-3">
+          <ParceladoForm
+            cartoesCfg={cartoesCfg}
+            monthKey={monthKey}
+            destinoFixo={destino}
+            onAdd={(p) => {
+              onAddParcelado(p);
+              setShowForm(false);
+            }}
+            onCancel={() => setShowForm(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1121,17 +2321,17 @@ function PersonLedger({ cota, gastos, onChangeGastos, accentColor, accentSoft })
 // Abas principais
 // ============================================================
 
-function TabResumo({ data, calc, mesLabel, trendData }) {
+function TabResumo({ data, calc, carteiras, mesLabel, trendData }) {
   const donutData = [
     { name: "Gastos fixos", value: calc.totalFixos, color: COLORS.coral },
     { name: "Gastos essenciais", value: calc.totalEssenciais, color: COLORS.mustard },
     { name: "Não essenciais", value: calc.totalNaoEssenciais, color: COLORS.teal },
+    { name: "Parcelas da casa", value: calc.totalParcelasCasa, color: COLORS.steel },
     { name: "Reserva de emergência", value: calc.valorMensalReserva, color: COLORS.primary },
     { name: "Investimentos", value: calc.valorMensalInvestimento, color: COLORS.lilac },
-    { name: "Saldo livre", value: Math.max(calc.saldoNaoAlocado, 0), color: "#CFC4A8" },
+    { name: "Gastos nas abinhas", value: calc.totalAbinhas, color: COLORS.soil },
+    { name: "Sobra real", value: Math.max(calc.sobraReal, 0), color: "#CFC4A8" },
   ].filter((d) => d.value > 0.009);
-
-  const pctLivre = calc.receitaTotal > 0 ? (calc.saldoNaoAlocado / calc.receitaTotal) * 100 : 0;
 
   return (
     <div className="px-4 pt-2 pb-4 space-y-4">
@@ -1144,20 +2344,7 @@ function TabResumo({ data, calc, mesLabel, trendData }) {
         </h1>
       </div>
 
-      <div className="rounded-3xl p-5" style={{ backgroundColor: COLORS.primaryDark }}>
-        <p className="text-sm" style={{ color: "#D9C7EA" }}>
-          Saldo não alocado
-        </p>
-        <p className="font-display text-4xl text-white mt-1">{formatBRL(calc.saldoNaoAlocado)}</p>
-        <p className="text-xs mt-2" style={{ color: "#B79ACC" }}>
-          {pctLivre.toFixed(1)}% da receita total ainda sem destino
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Receita total" value={calc.receitaTotal} sub="dinheiro + benefícios" />
-        <StatCard label="Total alocado" value={calc.totalAlocado} sub="fixos + essenciais + reserva + invest." />
-      </div>
+      <SaldoCarteiras cart={carteiras} calc={calc} />
 
       <div className="rounded-3xl p-4 border" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
         <p className="text-sm font-medium mb-2" style={{ color: COLORS.ink }}>
@@ -1180,14 +2367,23 @@ function TabResumo({ data, calc, mesLabel, trendData }) {
         <CategorySummaryRow label="Gastos fixos" value={calc.totalFixos} color={COLORS.coral} />
         <CategorySummaryRow label="Gastos essenciais" value={calc.totalEssenciais} color={COLORS.mustard} />
         <CategorySummaryRow label="Gastos não essenciais" value={calc.totalNaoEssenciais} color={COLORS.teal} />
+        {calc.totalParcelasCasa > 0 && (
+          <CategorySummaryRow label="Compras parceladas (casa)" value={calc.totalParcelasCasa} color={COLORS.steel} />
+        )}
         <CategorySummaryRow label="Reserva de emergência" value={calc.valorMensalReserva} color={COLORS.primary} />
         <CategorySummaryRow label="Investimentos" value={calc.valorMensalInvestimento} color={COLORS.lilac} />
+        <CategorySummaryRow label="Gastos nas abinhas (Bárbara + Bruno)" value={calc.totalAbinhas} color={COLORS.soil} />
+        <CategorySummaryRow
+          label="Total alocado (fixos + essenciais + parcelas + reserva + invest.)"
+          value={calc.totalAlocado}
+          color={COLORS.ink}
+        />
       </div>
 
       {trendData.length > 1 ? (
         <div className="rounded-3xl p-4 border" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
           <p className="text-sm font-medium mb-2" style={{ color: COLORS.ink }}>
-            Evolução do saldo não alocado
+            Evolução da sobra do mês
           </p>
           <TrendLineChart data={trendData} color={COLORS.primary} />
         </div>
@@ -1200,11 +2396,19 @@ function TabResumo({ data, calc, mesLabel, trendData }) {
   );
 }
 
-function TabContas({ data, setData }) {
+function TabContas({ data, dataEfetiva, setData, monthKey, parcelamentos, setParcelamentos, cartoesCfg }) {
+  // parcelas de compras parceladas que caem neste mês (da casa e das abinhas)
+  const parcelasMes = [
+    ...(dataEfetiva.gastosParcelas || []),
+    ...dataEfetiva.divisao.gastosBarbara.filter((g) => g.virtual),
+    ...dataEfetiva.divisao.gastosBruno.filter((g) => g.virtual),
+  ].map((i) => ({ ...i, _src: "parcela" }));
+
   const sourced = [
     ...data.gastosFixos.map((i) => ({ ...i, _src: "gastosFixos" })),
     ...data.gastosEssenciais.map((i) => ({ ...i, _src: "gastosEssenciais" })),
     ...data.gastosNaoEssenciais.filter((i) => Number(i.valor) > 0).map((i) => ({ ...i, _src: "gastosNaoEssenciais" })),
+    ...parcelasMes,
   ].sort((a, b) => {
     const av = a.vencimento === "" || a.vencimento == null ? 99 : Number(a.vencimento);
     const bv = b.vencimento === "" || b.vencimento == null ? 99 : Number(b.vencimento);
@@ -1215,16 +2419,30 @@ function TabContas({ data, setData }) {
   const totalPago = sourced.filter((i) => i.pago).reduce((a, i) => a + (Number(i.valor) || 0), 0);
   const totalPendente = totalMes - totalPago;
 
-  function togglePago(src, id) {
+  function togglePago(item) {
+    if (item._src === "parcela") {
+      // parcela de compra parcelada: o "pago" fica guardado por mês, separado da compra
+      setData((prev) => ({
+        ...prev,
+        parcelasPagas: { ...(prev.parcelasPagas || {}), [item.parcelamentoId]: !item.pago },
+      }));
+      return;
+    }
     setData((prev) => ({
       ...prev,
-      [src]: prev[src].map((item) => (item.id === id ? { ...item, pago: !item.pago } : item)),
+      [item._src]: prev[item._src].map((x) => (x.id === item.id ? { ...x, pago: !x.pago } : x)),
     }));
   }
   function updateVencimento(src, id, value) {
     setData((prev) => ({
       ...prev,
       [src]: prev[src].map((item) => (item.id === id ? { ...item, vencimento: value } : item)),
+    }));
+  }
+  function updateCartao(src, id, value) {
+    setData((prev) => ({
+      ...prev,
+      [src]: prev[src].map((item) => (item.id === id ? { ...item, cartao: value } : item)),
     }));
   }
 
@@ -1240,6 +2458,13 @@ function TabContas({ data, setData }) {
         <StatCard label="Já pago" value={totalPago} />
         <StatCard label="Ainda por pagar" value={totalPendente} />
       </div>
+      <FaturasCard data={dataEfetiva} cfg={cartoesCfg} />
+      <ParcelamentosCard
+        parcelamentos={parcelamentos}
+        setParcelamentos={setParcelamentos}
+        cartoesCfg={cartoesCfg}
+        monthKey={monthKey}
+      />
       <div className="space-y-2">
         {sourced.map((item) => (
           <div
@@ -1247,7 +2472,7 @@ function TabContas({ data, setData }) {
             className="flex items-center gap-3 rounded-2xl border px-3 py-2.5"
             style={{ borderColor: COLORS.border, backgroundColor: item.pago ? "#EFEBDC" : COLORS.cream }}
           >
-            <button onClick={() => togglePago(item._src, item.id)} aria-label="Marcar como pago">
+            <button onClick={() => togglePago(item)} aria-label="Marcar como pago">
               {item.pago ? <CheckCircle2 size={22} color={COLORS.primary} /> : <Circle size={22} color={COLORS.border} />}
             </button>
             <div className="flex-1 min-w-0">
@@ -1262,17 +2487,44 @@ function TabContas({ data, setData }) {
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <PersonBadge pessoa={item.responsavel} />
-                <span className="text-xs" style={{ color: COLORS.inkSoft }}>
-                  dia
-                </span>
-                <input
-                  placeholder="—"
-                  value={item.vencimento}
-                  onChange={(e) => updateVencimento(item._src, item.id, e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-                  className="w-8 text-xs bg-transparent outline-none border-b"
-                  style={{ color: COLORS.inkSoft, borderColor: COLORS.border }}
-                />
+                {item._src === "parcela" ? (
+                  <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+                    {item.vencimento !== "" ? `vence dia ${item.vencimento}` : "parcela da fatura"}
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-xs" style={{ color: COLORS.inkSoft }}>
+                      dia
+                    </span>
+                    <input
+                      placeholder="—"
+                      value={item.vencimento}
+                      onChange={(e) => updateVencimento(item._src, item.id, e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                      className="w-8 text-xs bg-transparent outline-none border-b"
+                      style={{ color: COLORS.inkSoft, borderColor: COLORS.border }}
+                    />
+                  </>
+                )}
               </div>
+              {item._src === "parcela" ? (
+                <p className="text-xs mt-1 flex items-center gap-1" style={{ color: COLORS.primary }}>
+                  <CreditCard size={12} color={COLORS.primary} />
+                  Parcela {item.parcela.numero}/{item.parcela.total}
+                  {item.cartao !== "nenhum" && ` · ${rotuloCartao(item.cartao)}`}
+                </p>
+              ) : (
+                <>
+                  <div className="mt-1">
+                    <CartaoSelect value={item.cartao} onChange={(v) => updateCartao(item._src, item.id, v)} />
+                  </div>
+                  {normVale(item.vale) !== "nenhum" && (
+                    <p className="text-xs mt-1" style={{ color: COLORS.primary }}>
+                      Pago com {rotuloVale(item.vale)}
+                      {Number(item.valeValor) > 0 ? ` (${formatBRL(item.valeValor)})` : ""}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
             <span className="text-sm font-medium whitespace-nowrap" style={{ color: COLORS.primaryDark }}>
               {formatBRL(item.valor)}
@@ -1284,7 +2536,7 @@ function TabContas({ data, setData }) {
   );
 }
 
-function TabSimulador({ data, setData }) {
+function TabSimulador({ data, setData, monthKey, parcelamentos, cartoesCfg }) {
   const [simData, setSimData] = useState(() => deepCopy(data));
   const [showCalc, setShowCalc] = useState(false);
 
@@ -1293,9 +2545,16 @@ function TabSimulador({ data, setData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  const realCalc = useMemo(() => calcularOrcamento(data), [data]);
-  const simCalc = useMemo(() => calcularOrcamento(simData), [simData]);
-  const delta = simCalc.saldoNaoAlocado - realCalc.saldoNaoAlocado;
+  // O cálculo considera as parcelas que caem neste mês, igual ao orçamento real.
+  const realCalc = useMemo(
+    () => calcularOrcamento(aplicarParcelamentos(data, monthKey, parcelamentos, cartoesCfg)),
+    [data, monthKey, parcelamentos, cartoesCfg]
+  );
+  const simCalc = useMemo(
+    () => calcularOrcamento(aplicarParcelamentos(simData, monthKey, parcelamentos, cartoesCfg)),
+    [simData, monthKey, parcelamentos, cartoesCfg]
+  );
+  const delta = simCalc.sobraReal - realCalc.sobraReal;
 
   function resetSim() {
     setSimData(deepCopy(data));
@@ -1318,9 +2577,9 @@ function TabSimulador({ data, setData }) {
 
       <div className="rounded-3xl p-4" style={{ backgroundColor: COLORS.primaryDark }}>
         <p className="text-xs" style={{ color: "#D9C7EA" }}>
-          Saldo simulado
+          Sobra simulada
         </p>
-        <p className="font-display text-3xl text-white mt-1">{formatBRL(simCalc.saldoNaoAlocado)}</p>
+        <p className="font-display text-3xl text-white mt-1">{formatBRL(simCalc.sobraReal)}</p>
         <p
           className="text-xs mt-1"
           style={{ color: delta === 0 ? "#B79ACC" : delta > 0 ? "#9FE3B0" : "#F0A8A0" }}
@@ -1396,8 +2655,11 @@ function TabSimulador({ data, setData }) {
   );
 }
 
-function TabPoupanca({ data, setData, calc }) {
+function TabPoupanca({ data, dataEfetiva, setData, calc, monthKey, setParcelamentos, cartoesCfg }) {
   const [personTab, setPersonTab] = useState("Bárbara");
+  const parcelasBarbara = dataEfetiva.divisao.gastosBarbara.filter((g) => g.virtual);
+  const parcelasBruno = dataEfetiva.divisao.gastosBruno.filter((g) => g.virtual);
+  const addParcelado = (p) => setParcelamentos((prev) => [...prev, p]);
   const pctReservaAtingida =
     calc.metaReserva > 0 ? Math.min((calc.metaReserva - calc.faltaReserva) / calc.metaReserva, 1) : 0;
   const divisao = calcularDivisao(data, calc.saldoNaoAlocado);
@@ -1536,7 +2798,13 @@ function TabPoupanca({ data, setData, calc }) {
               {formatBRL(divisao.valorBarbara)}
             </p>
             <p className="text-xs" style={{ color: COLORS.inkSoft }}>
-              {(divisao.pctBarbara * 100).toFixed(0)}%
+              {(divisao.pctBarbara * 100).toFixed(0)}% · cota
+            </p>
+            <p
+              className="text-xs mt-1 font-medium"
+              style={{ color: divisao.valorBarbara - calc.gastosAbinhaBarbara < 0 ? COLORS.danger : COLORS.ink }}
+            >
+              Sobra: {formatBRL(divisao.valorBarbara - calc.gastosAbinhaBarbara)}
             </p>
           </div>
           <div className="rounded-2xl p-3" style={{ backgroundColor: "#E6EEEC" }}>
@@ -1545,9 +2813,26 @@ function TabPoupanca({ data, setData, calc }) {
               {formatBRL(divisao.valorBruno)}
             </p>
             <p className="text-xs" style={{ color: COLORS.inkSoft }}>
-              {(100 - divisao.pctBarbara * 100).toFixed(0)}%
+              {(100 - divisao.pctBarbara * 100).toFixed(0)}% · cota
+            </p>
+            <p
+              className="text-xs mt-1 font-medium"
+              style={{ color: divisao.valorBruno - calc.gastosAbinhaBruno < 0 ? COLORS.danger : COLORS.ink }}
+            >
+              Sobra: {formatBRL(divisao.valorBruno - calc.gastosAbinhaBruno)}
             </p>
           </div>
+        </div>
+
+        <div className="rounded-2xl p-3 mb-4" style={{ backgroundColor: COLORS.primaryDark }}>
+          <p className="text-xs" style={{ color: "#D9C7EA" }}>
+            Sobra real, já descontando os gastos das abinhas
+          </p>
+          <p className="font-display text-2xl text-white mt-0.5">{formatBRL(calc.sobraReal)}</p>
+          <p className="text-xs mt-1" style={{ color: "#B79ACC" }}>
+            {formatBRL(calc.saldoNaoAlocado)} de saldo − {formatBRL(calc.gastosAbinhaBarbara)} (Bárbara) −{" "}
+            {formatBRL(calc.gastosAbinhaBruno)} (Bruno)
+          </p>
         </div>
 
         <div className="pt-3 border-t" style={{ borderColor: COLORS.border }}>
@@ -1555,7 +2840,8 @@ function TabPoupanca({ data, setData, calc }) {
             Nossas abinhas
           </p>
           <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>
-            Cada um lança aqui os gastos que foi tendo dentro da própria cota do saldo não alocado.
+            Cada um lança aqui os gastos que foi tendo dentro da própria cota do saldo não alocado. Tudo o que
+            for lançado aqui já é descontado da sobra real do mês, e dá pra marcar em qual cartão foi.
           </p>
           <div className="flex gap-2 mb-3">
             {["Bárbara", "Bruno"].map((p) => {
@@ -1584,6 +2870,11 @@ function TabPoupanca({ data, setData, calc }) {
               onChangeGastos={(v) => updateDivisao("gastosBarbara", v)}
               accentColor={COLORS.coral}
               accentSoft="#F7E9E3"
+              parcelas={parcelasBarbara}
+              destino="barbara"
+              cartoesCfg={cartoesCfg}
+              monthKey={monthKey}
+              onAddParcelado={addParcelado}
             />
           ) : (
             <PersonLedger
@@ -1592,6 +2883,11 @@ function TabPoupanca({ data, setData, calc }) {
               onChangeGastos={(v) => updateDivisao("gastosBruno", v)}
               accentColor={COLORS.teal}
               accentSoft="#E6EEEC"
+              parcelas={parcelasBruno}
+              destino="bruno"
+              cartoesCfg={cartoesCfg}
+              monthKey={monthKey}
+              onAddParcelado={addParcelado}
             />
           )}
         </div>
@@ -1600,9 +2896,13 @@ function TabPoupanca({ data, setData, calc }) {
   );
 }
 
-function TabEditar({ data, setData, mesLabel, resetActiveMonth }) {
+function TabEditar({ data, setData, mesLabel, resetActiveMonth, cartoesCfg, setCartoesCfg }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const r = data.receitas;
+
+  function updateCfg(cartao, campo, valor) {
+    setCartoesCfg((prev) => ({ ...prev, [cartao]: { ...prev[cartao], [campo]: valor } }));
+  }
 
   function updateReceita(field, value) {
     setData((prev) => ({ ...prev, receitas: { ...prev.receitas, [field]: value } }));
@@ -1640,6 +2940,42 @@ function TabEditar({ data, setData, mesLabel, resetActiveMonth }) {
         </div>
       </div>
 
+      <div className="rounded-3xl border p-4 space-y-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.cream }}>
+        <div>
+          <p className="text-sm font-medium" style={{ color: COLORS.ink }}>
+            Cartões
+          </p>
+          <p className="text-xs mt-1" style={{ color: COLORS.inkSoft }}>
+            Valem pra todos os meses. Com o fechamento e o vencimento, o app descobre em qual fatura cai cada
+            compra parcelada. Regra usada: compras feitas a partir do dia do fechamento entram na fatura
+            seguinte (é a regra da Nubank; o contrato da XP não diz o que acontece nesse dia).
+          </p>
+          <p className="text-xs mt-1" style={{ color: COLORS.inkSoft }}>
+            Nos Nubank, o vencimento é o fechamento + 7 dias (regra da Nubank) — confira no app. O contrato da XP diz
+            que o fechamento pode variar a critério do banco, então vale conferir de vez em quando.
+          </p>
+        </div>
+        {CARTOES_COM_DATAS.map((c) => (
+          <div key={c.id}>
+            <p className="text-xs font-medium flex items-center gap-1" style={{ color: c.cor }}>
+              <CreditCard size={13} color={c.cor} /> {c.titulo}
+            </p>
+            <div className="grid grid-cols-2 gap-3 mt-1">
+              <DiaField
+                label="Fecha"
+                value={cartoesCfg[c.id].diaFechamento}
+                onChange={(v) => updateCfg(c.id, "diaFechamento", v)}
+              />
+              <DiaField
+                label="Vence"
+                value={cartoesCfg[c.id].diaVencimento}
+                onChange={(v) => updateCfg(c.id, "diaVencimento", v)}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
       <EditableCategoryList title="Gastos fixos" items={data.gastosFixos} onChange={(v) => setData((prev) => ({ ...prev, gastosFixos: v }))} />
       <EditableCategoryList title="Gastos essenciais" items={data.gastosEssenciais} onChange={(v) => setData((prev) => ({ ...prev, gastosEssenciais: v }))} />
       <EditableCategoryList title="Gastos não essenciais" items={data.gastosNaoEssenciais} onChange={(v) => setData((prev) => ({ ...prev, gastosNaoEssenciais: v }))} />
@@ -1655,8 +2991,9 @@ function TabEditar({ data, setData, mesLabel, resetActiveMonth }) {
       ) : (
         <div className="rounded-2xl border p-3 text-center space-y-2" style={{ borderColor: COLORS.danger }}>
           <p className="text-xs" style={{ color: COLORS.ink }}>
-            Isso substitui os valores editados de {mesLabel} pelos valores originais. Os outros meses do
-            histórico não são afetados. Tem certeza?
+            Isso substitui os valores editados de {mesLabel} pelos valores originais e apaga os gastos
+            lançados nas abinhas e os cartões marcados nesse mês. Os outros meses do histórico não são
+            afetados. Tem certeza?
           </p>
           <div className="flex gap-2">
             <button
@@ -1740,6 +3077,8 @@ function UnauthorizedScreen({ email, onSignOut }) {
     </div>
   );
 }
+
+const NO_PARCELAS = [];
 
 function App() {
   const [authState, setAuthState] = useState("loading");
@@ -1826,15 +3165,29 @@ function App() {
   }
 
   const data = rootData ? rootData.months[rootData.activeMonth] : null;
-  const calc = useMemo(() => (data ? calcularOrcamento(data) : null), [data]);
+  const parcelamentos = rootData ? rootData.parcelamentos : NO_PARCELAS;
+  const cartoesCfg = rootData ? rootData.cartoes : DEFAULT_CARTOES_CFG;
+  const activeMonth = rootData ? rootData.activeMonth : null;
+  // Mês + parcelas que caem nele (só pra calcular/mostrar — nunca é gravado)
+  const dataEfetiva = useMemo(
+    () => (data ? aplicarParcelamentos(data, activeMonth, parcelamentos, cartoesCfg) : null),
+    [data, activeMonth, parcelamentos, cartoesCfg]
+  );
+  const calc = useMemo(() => (dataEfetiva ? calcularOrcamento(dataEfetiva) : null), [dataEfetiva]);
+  const carteiras = useMemo(
+    () => (dataEfetiva && calc ? calcularCarteiras(dataEfetiva, calc) : null),
+    [dataEfetiva, calc]
+  );
 
   const trendData = useMemo(() => {
     if (!rootData) return [];
     return Object.keys(rootData.months)
       .sort()
       .map((key) => {
-        const c = calcularOrcamento(rootData.months[key]);
-        return { key, mes: monthKeyToShort(key), saldo: c.saldoNaoAlocado, receita: c.receitaTotal };
+        const c = calcularOrcamento(
+          aplicarParcelamentos(rootData.months[key], key, rootData.parcelamentos, rootData.cartoes)
+        );
+        return { key, mes: monthKeyToShort(key), saldo: c.sobraReal, receita: c.receitaTotal };
       });
   }, [rootData]);
 
@@ -1847,7 +3200,21 @@ function App() {
   }
 
   function resetActiveMonth() {
-    setData(() => deepCopy(DEFAULT_MONTH_DATA));
+    setData(() => normalizeMonthData(deepCopy(DEFAULT_MONTH_DATA)));
+  }
+
+  // Compras parceladas e configuração dos cartões ficam na raiz (valem pra todos os meses)
+  function setParcelamentos(updater) {
+    setRootData((prev) => ({
+      ...prev,
+      parcelamentos: typeof updater === "function" ? updater(prev.parcelamentos || []) : updater,
+    }));
+  }
+  function setCartoesCfg(updater) {
+    setRootData((prev) => ({
+      ...prev,
+      cartoes: typeof updater === "function" ? updater(prev.cartoes) : updater,
+    }));
   }
 
   if (authState === "loading") {
@@ -1867,7 +3234,7 @@ function App() {
     return <UnauthorizedScreen email={user ? user.email : ""} onSignOut={handleSignOut} />;
   }
 
-  if (loading || !data || !calc) {
+  if (loading || !data || !calc || !dataEfetiva || !carteiras) {
     return (
       <div className="min-h-screen flex items-center justify-center font-body" style={{ backgroundColor: COLORS.bg }}>
         <GlobalStyle />
@@ -1913,12 +3280,49 @@ function App() {
 
       <div className="max-w-md mx-auto">
         <MonthSwitcher rootData={rootData} setRootData={setRootData} />
-        {tab === "resumo" && <TabResumo data={data} calc={calc} mesLabel={mesLabel} trendData={trendData} />}
-        {tab === "contas" && <TabContas data={data} setData={setData} />}
-        {tab === "simulador" && <TabSimulador data={data} setData={setData} />}
-        {tab === "poupanca" && <TabPoupanca data={data} setData={setData} calc={calc} />}
+        {tab === "resumo" && (
+          <TabResumo data={data} calc={calc} carteiras={carteiras} mesLabel={mesLabel} trendData={trendData} />
+        )}
+        {tab === "contas" && (
+          <TabContas
+            data={data}
+            dataEfetiva={dataEfetiva}
+            setData={setData}
+            monthKey={activeMonth}
+            parcelamentos={parcelamentos}
+            setParcelamentos={setParcelamentos}
+            cartoesCfg={cartoesCfg}
+          />
+        )}
+        {tab === "simulador" && (
+          <TabSimulador
+            data={data}
+            setData={setData}
+            monthKey={activeMonth}
+            parcelamentos={parcelamentos}
+            cartoesCfg={cartoesCfg}
+          />
+        )}
+        {tab === "poupanca" && (
+          <TabPoupanca
+            data={data}
+            dataEfetiva={dataEfetiva}
+            setData={setData}
+            calc={calc}
+            monthKey={activeMonth}
+            setParcelamentos={setParcelamentos}
+            cartoesCfg={cartoesCfg}
+          />
+        )}
         {tab === "editar" && (
-          <TabEditar data={data} setData={setData} mesLabel={mesLabel} resetActiveMonth={resetActiveMonth} />
+          <TabEditar
+            data={data}
+            setData={setData}
+            mesLabel={mesLabel}
+            resetActiveMonth={resetActiveMonth}
+            cartoesCfg={cartoesCfg}
+            setCartoesCfg={setCartoesCfg}
+          />
         )}
       </div>
 

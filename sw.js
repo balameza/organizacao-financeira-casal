@@ -1,4 +1,4 @@
-const CACHE_NAME = "nosso-orcamento-v1";
+const CACHE_NAME = "nosso-orcamento-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
